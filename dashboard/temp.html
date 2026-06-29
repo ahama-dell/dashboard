@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>양생실 온습도 모니터링</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Bebas+Neue&display=swap');
+
+  :root {
+    font-size: clamp(13px, 0.85vw, 18px);
+    --bg: #0b1120;
+    --accent: #1adf8b;
+    --accent-glow: rgba(26,223,139,0.55);
+    --text-pri: #f0f4ff;
+    --text-sec: rgba(240,244,255,0.6);
+    --text-dim: rgba(240,244,255,0.32);
+    --hdr-bg: #ffffff;
+    --hdr-text: #1a1a1a;
+    --hdr-text-sec: #4b5563;
+    --hdr-border: rgba(0,0,0,0.08);
+    --hdr-accent: #0F6E56;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100vw; height: 100vh;
+    background: var(--bg);
+    font-family: 'Noto Sans KR', sans-serif;
+    color: var(--text-pri);
+    overflow: hidden;
+  }
+
+  /* ── HEADER ─────────────────────────────── */
+  #header {
+    position: fixed; top: 0; left: 0; right: 0; height: 54px;
+    background: var(--hdr-bg);
+    border-bottom: 0.5px solid var(--hdr-border);
+    padding: 0 16px;
+    display: flex; align-items: center; gap: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    z-index: 100;
+  }
+  .hdr-title { font-size: 1rem; font-weight: 700; color: var(--hdr-text); letter-spacing: -0.3px; }
+  .hdr-sep { width: 1px; height: 28px; background: rgba(0,0,0,0.08); flex-shrink: 0; }
+  .hdr-btn {
+    background: #f9fafb; border: 0.5px solid rgba(0,0,0,0.1);
+    border-radius: 6px; padding: 6px 11px; cursor: pointer;
+    font-size: 0.6875rem; color: #4b5563; transition: all .15s;
+    white-space: nowrap; font-weight: 500; font-family: inherit;
+    display: flex; align-items: center; gap: 5px;
+    text-decoration: none;
+  }
+  .hdr-btn:hover { border-color: var(--hdr-accent); color: var(--hdr-accent); background: #f0fdf4; }
+  .hdr-btn.active { border-color: var(--hdr-accent); color: var(--hdr-accent); background: #f0fdf4; }
+  #liveClock {
+    font-size: 0.6875rem; color: var(--hdr-text-sec);
+    font-variant-numeric: tabular-nums; font-weight: 500;
+    margin-left: auto;
+  }
+
+  /* ── ZOOM / RANGE BAR ───────────────────── */
+  #zoomBar {
+    position: fixed; top: 54px; left: 0; right: 0; height: 44px;
+    background: #111c2e;
+    border-bottom: 0.5px solid rgba(255,255,255,0.07);
+    padding: 0 16px;
+    display: flex; align-items: center; gap: 8px;
+    z-index: 90; overflow: hidden;
+  }
+  .zoom-label {
+    font-size: 0.625rem; color: var(--text-sec);
+    text-transform: uppercase; letter-spacing: 1px; font-weight: 500;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .zoom-btn {
+    background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.12);
+    color: var(--text-sec); border-radius: 5px;
+    padding: 4px 9px; cursor: pointer; font-size: 0.6875rem;
+    font-weight: 500; font-family: inherit; transition: all .15s;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .zoom-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(26,223,139,0.06); }
+  .zoom-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(26,223,139,0.1); }
+  .zoom-icon-btn {
+    background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.12);
+    color: var(--text-sec); border-radius: 5px;
+    width: 28px; height: 28px; cursor: pointer; font-size: 1.1rem; font-weight: 700;
+    font-family: inherit; transition: all .15s;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .zoom-icon-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(26,223,139,0.06); }
+  .time-range-wrap { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+  .time-range-wrap input[type=datetime-local] {
+    background: rgba(255,255,255,0.05);
+    border: 0.5px solid rgba(255,255,255,0.14);
+    border-radius: 5px; padding: 4px 7px;
+    color: var(--text-pri); font-size: 0.625rem;
+    font-family: inherit; outline: none; cursor: pointer;
+    transition: border-color .15s; width: 142px;
+  }
+  .time-range-wrap input[type=datetime-local]:focus { border-color: var(--accent); }
+  .time-range-wrap input[type=datetime-local]::-webkit-calendar-picker-indicator { filter: invert(0.6); cursor: pointer; }
+  .time-range-sep { color: var(--text-dim); font-size: 0.75rem; }
+  .zoom-info { font-size: 0.625rem; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
+  .shortcut-hint {
+    margin-left: auto; font-size: 0.5625rem; color: var(--text-dim);
+    display: flex; align-items: center; gap: 8px; white-space: nowrap; flex-shrink: 0;
+  }
+  .shortcut-hint kbd {
+    background: rgba(255,255,255,0.08); border: 0.5px solid rgba(255,255,255,0.15);
+    border-radius: 3px; padding: 1px 4px;
+    font-family: inherit; font-size: 0.5625rem; color: var(--text-sec);
+  }
+
+  /* ── MAIN LAYOUT ─────────────────────────── */
+  #main {
+    position: fixed; top: 98px; left: 0; right: 0; bottom: 0;
+    display: flex; flex-direction: column;
+    padding: 10px 16px 12px; gap: 8px;
+  }
+
+  /* Summary cards */
+  #summaryRow {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 7px;
+  }
+  .sum-card {
+    background: rgba(255,255,255,0.04);
+    border: 0.5px solid rgba(255,255,255,0.08);
+    border-radius: 8px; padding: 9px 12px;
+    display: flex; flex-direction: column; gap: 2px;
+    transition: border-color .15s;
+  }
+  .sum-card:hover { border-color: rgba(26,223,139,0.2); }
+  .sum-card .sc-label { font-size: 0.5625rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; font-weight: 500; }
+  .sum-card .sc-val { font-size: 1.25rem; font-weight: 700; font-family: 'Bebas Neue', sans-serif; letter-spacing: 1px; line-height: 1.15; }
+  .sum-card .sc-sub { font-size: 0.5rem; color: var(--text-dim); }
+
+  /* Legend/filter strip */
+  #filterStrip {
+    flex: 0 0 auto;
+    background: rgba(255,255,255,0.03);
+    border: 0.5px solid rgba(255,255,255,0.07);
+    border-radius: 8px; padding: 7px 14px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    font-size: 0.6875rem; color: var(--text-sec);
+  }
+  .filter-group { display: flex; align-items: center; gap: 5px; }
+  .filter-group-label { font-size: 0.625rem; font-weight: 700; min-width: 26px; }
+  .room-btn {
+    width: 26px; height: 22px; border-radius: 4px;
+    font-size: 0.625rem; font-weight: 700; cursor: pointer;
+    border: 1.5px solid; transition: all .12s;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent;
+  }
+  .all-btn {
+    background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.12);
+    color: var(--text-sec); border-radius: 4px;
+    padding: 2px 8px; font-size: 0.625rem; font-weight: 600; cursor: pointer;
+    transition: all .12s; font-family: inherit; height: 22px;
+    display: flex; align-items: center;
+  }
+  .all-btn:hover { border-color: rgba(255,255,255,0.3); color: var(--text-pri); }
+  .target-chk {
+    display: flex; align-items: center; gap: 5px; cursor: pointer;
+    user-select: none; font-size: 0.6875rem; color: var(--text-sec); margin-left: auto;
+  }
+  .target-chk input[type=checkbox] { accent-color: var(--accent); cursor: pointer; width: 12px; height: 12px; }
+
+  /* Chart outer wrapper (chart + pan scrollbar) */
+  #chartOuter {
+    flex: 1 1 auto; min-height: 0;
+    display: flex; flex-direction: column; gap: 0;
+  }
+
+  /* Chart canvas wrapper */
+  #chartWrap {
+    flex: 1 1 auto; min-height: 0;
+    position: relative;
+    background: rgba(255,255,255,0.02);
+    border: 0.5px solid rgba(255,255,255,0.07);
+    border-radius: 10px 10px 0 0;
+    overflow: hidden;
+  }
+  #chartWrap canvas { width: 100% !important; height: 100% !important; }
+
+  /* Pan scrollbar */
+  #panScrollbar {
+    flex: 0 0 auto; height: 18px;
+    background: rgba(255,255,255,0.025);
+    border: 0.5px solid rgba(255,255,255,0.07);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    position: relative; cursor: pointer;
+    overflow: hidden;
+    display: none; /* shown only when zoomed */
+  }
+  #panScrollbar.visible { display: block; }
+  #panTrack {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+  }
+  #panThumb {
+    position: absolute; top: 3px; bottom: 3px;
+    background: rgba(26,223,139,0.35);
+    border: 0.5px solid rgba(26,223,139,0.6);
+    border-radius: 4px;
+    cursor: grab;
+    transition: background .1s;
+    min-width: 20px;
+  }
+  #panThumb:hover { background: rgba(26,223,139,0.5); }
+  #panThumb.dragging { cursor: grabbing; background: rgba(26,223,139,0.6); }
+  #panScrollbar .sb-tick-left,
+  #panScrollbar .sb-tick-right {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    font-size: 0.5rem; color: var(--text-dim); pointer-events: none;
+    white-space: nowrap;
+  }
+  #panScrollbar .sb-tick-left  { left: 6px; }
+  #panScrollbar .sb-tick-right { right: 6px; }
+
+  /* Empty state */
+  #emptyState {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px;
+  }
+  .empty-icon { font-size: 2.8rem; opacity: 0.3; }
+  .empty-text { font-size: 0.875rem; color: var(--text-dim); text-align: center; line-height: 1.6; }
+  .empty-hint { font-size: 0.6875rem; color: var(--text-dim); opacity: 0.55; }
+
+  /* Zoom indicator overlay */
+  #zoomIndicator {
+    position: absolute; top: 10px; right: 12px;
+    background: rgba(26,223,139,0.12); border: 0.5px solid rgba(26,223,139,0.3);
+    border-radius: 5px; padding: 3px 8px;
+    font-size: 0.5625rem; color: var(--accent);
+    pointer-events: none; opacity: 0; transition: opacity .3s;
+  }
+  #zoomIndicator.show { opacity: 1; }
+
+  /* Scrollbar */
+  *::-webkit-scrollbar { width: 5px; height: 5px; }
+  *::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius: 3px; }
+  *::-webkit-scrollbar-thumb { background: rgba(26,223,139,0.3); border-radius: 3px; }
+  *::-webkit-scrollbar-thumb:hover { background: rgba(26,223,139,0.5); }
+
+  /* Hidden file input */
+  #tempHumidInput { position: absolute !important; width: 1px !important; height: 1px !important;
+    opacity: 0 !important; pointer-events: none !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: #1a1a2e; border: 0.5px solid rgba(26,223,139,0.3);
+    border-radius: 8px; padding: 9px 18px;
+    font-size: 0.75rem; color: var(--text-pri);
+    opacity: 0; transition: opacity .25s, transform .25s;
+    pointer-events: none; z-index: 9999; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ─────────────────────────────── -->
+<header id="header">
+  <div class="hdr-title">🌡️ 양생실 온습도 모니터링</div>
+  <div class="hdr-sep"></div>
+  <!-- 관리자 모드(?admin=1)에서만 표시 -->
+  <label for="tempHumidInput" id="uploadLabel" class="hdr-btn active" style="cursor:pointer; display:none;">📂 파일 업로드</label>
+  <input type="file" id="tempHumidInput" accept=".xlsx,.xls">
+  <button id="saveBtn"  class="hdr-btn" onclick="saveToStorage()"  style="display:none;">💾 저장</button>
+  <button id="clearBtn" class="hdr-btn" onclick="clearStorage()"   style="display:none; color:#e74c3c;">🗑️ 데이터 삭제</button>
+  <div id="fileInfo" style="font-size:0.625rem; color:var(--hdr-text-sec); display:none;">
+    <strong id="fileName"></strong><span id="fileRowCount" style="color:var(--hdr-accent);"></span>
+  </div>
+  <span id="saveStatus" style="font-size:0.5625rem; color:var(--hdr-text-sec); white-space:nowrap;"></span>
+  <!-- 실시간 연동 상태 -->
+  <div id="liveStatus" style="display:none; align-items:center; gap:6px; margin-left:4px;">
+    <span id="liveDot" style="width:8px;height:8px;border-radius:50%;background:#555;display:inline-block;transition:background .4s;"></span>
+    <span id="liveText" style="font-size:0.5625rem; color:var(--hdr-text-sec); white-space:nowrap;"></span>
+    <button id="liveRefreshBtn" class="hdr-btn" onclick="liveRefreshNow()" style="padding:3px 7px; font-size:0.5625rem; margin-right:4px;">↺ 갱신</button>
+    <button id="liveSessionBtn" class="hdr-btn" onclick="injectSessionKey()" style="padding:3px 7px; font-size:0.5625rem; border-color:var(--hdr-accent); color:var(--hdr-accent); background:#f0fdf4;">🔑 세션 갱신</button>
+  </div>
+  <span id="liveClock"></span>
+</header>
+
+<!-- ── ZOOM BAR ───────────────────────────── -->
+<div id="zoomBar">
+  <span class="zoom-label">기간</span>
+  <button class="zoom-btn" id="preset-1h"  onclick="applyPreset('1h')">1시간</button>
+  <button class="zoom-btn" id="preset-4h"  onclick="applyPreset('4h')">4시간</button>
+  <button class="zoom-btn" id="preset-8h"  onclick="applyPreset('8h')">8시간</button>
+  <button class="zoom-btn" id="preset-12h" onclick="applyPreset('12h')">12시간</button>
+  <button class="zoom-btn" id="preset-24h" onclick="applyPreset('24h')">24시간</button>
+  <button class="zoom-btn active" id="preset-all" onclick="applyPreset('all')">전체</button>
+  <div class="hdr-sep" style="background:rgba(255,255,255,0.07);"></div>
+  <span class="zoom-label">범위</span>
+  <div class="time-range-wrap">
+    <input type="datetime-local" id="rangeStart" onchange="applyManualRange()">
+    <span class="time-range-sep">~</span>
+    <input type="datetime-local" id="rangeEnd" onchange="applyManualRange()">
+  </div>
+  <div class="hdr-sep" style="background:rgba(255,255,255,0.07);"></div>
+  <button class="zoom-icon-btn" onclick="zoomStep(-1)" title="줌인 (+)">+</button>
+  <button class="zoom-icon-btn" onclick="zoomStep(1)"  title="줌아웃 (-)">−</button>
+  <button class="zoom-btn" onclick="applyPreset('all')" title="전체 보기 (F)">⊙ Fit</button>
+  <span class="zoom-info" id="zoomInfo">—</span>
+  <div class="shortcut-hint">
+    <span><kbd>+</kbd>/<kbd>-</kbd> 줌</span>
+    <span><kbd>←</kbd><kbd>→</kbd> 이동</span>
+    <span><kbd>F</kbd> 전체보기</span>
+    <span><kbd>Scroll</kbd> 줌 · <kbd>Drag</kbd> 이동</span>
+  </div>
+</div>
+
+<!-- ── MAIN ───────────────────────────────── -->
+<div id="main">
+
+  <!-- Summary cards -->
+  <div id="summaryRow">
+    <div class="sum-card">
+      <div class="sc-label">평균 온도 (MKT)</div>
+      <div class="sc-val" id="sc-mkt" style="color:#ff4d4d;">—</div>
+      <div class="sc-sub" id="sc-mkt-sub">범위 내 데이터 없음</div>
+    </div>
+    <div class="sum-card">
+      <div class="sc-label">온도 범위 (최저~최고)</div>
+      <div class="sc-val" id="sc-temp-range" style="color:#ff9800; font-size:0.9rem; letter-spacing:0;">—</div>
+      <div class="sc-sub" id="sc-temp-range-sub"></div>
+    </div>
+    <div class="sum-card">
+      <div class="sc-label">평균 습도</div>
+      <div class="sc-val" id="sc-humid" style="color:#54a0ff;">—</div>
+      <div class="sc-sub" id="sc-humid-sub"></div>
+    </div>
+    <div class="sum-card">
+      <div class="sc-label">습도 범위 (최저~최고)</div>
+      <div class="sc-val" id="sc-humid-range" style="color:#00d2d3; font-size:0.9rem; letter-spacing:0;">—</div>
+      <div class="sc-sub" id="sc-humid-range-sub"></div>
+    </div>
+    <div class="sum-card">
+      <div class="sc-label">데이터 포인트</div>
+      <div class="sc-val" id="sc-points" style="color:var(--accent);">—</div>
+      <div class="sc-sub" id="sc-points-sub"></div>
+    </div>
+    <div class="sum-card">
+      <div class="sc-label">모니터링 기간</div>
+      <div class="sc-val" id="sc-duration" style="color:var(--text-pri); font-size:0.9rem; letter-spacing:0;">—</div>
+      <div class="sc-sub" id="sc-duration-sub"></div>
+    </div>
+  </div>
+
+  <!-- Legend/filter strip -->
+  <div id="filterStrip">
+    <div class="filter-group">
+      <span class="filter-group-label" style="color:#ff4d4d;">온도</span>
+      <div id="tempRoomBtns" style="display:flex; gap:4px;"></div>
+      <button class="all-btn" onclick="toggleAll('temp')">전체</button>
+    </div>
+    <div class="filter-group">
+      <span class="filter-group-label" style="color:#54a0ff;">습도</span>
+      <div id="humidRoomBtns" style="display:flex; gap:4px;"></div>
+      <button class="all-btn" onclick="toggleAll('humid')">전체</button>
+    </div>
+    <label class="target-chk">
+      <input type="checkbox" id="chkTarget" checked onchange="state.showTarget=this.checked; drawChart(); saveOptsOnly();">
+      기준선 (온도 22°C / 습도 70%)
+    </label>
+  </div>
+
+  <!-- Chart + scrollbar -->
+  <div id="chartOuter">
+    <div id="chartWrap">
+      <canvas id="curingCanvas"></canvas>
+      <div id="emptyState">
+        <div class="empty-icon">📈</div>
+        <div class="empty-text" id="emptyMsg">온습도 데이터가 없습니다</div>
+        <div class="empty-hint">지원 형식: .xlsx / .xls (양생실 1~6호실 온도·습도)</div>
+      </div>
+      <div id="zoomIndicator"></div>
+    </div>
+    <!-- Pan scrollbar (visible when zoomed) -->
+    <div id="panScrollbar">
+      <div id="panTrack">
+        <div id="panThumb"></div>
+      </div>
+      <span class="sb-tick-left"  id="sbTickLeft"></span>
+      <span class="sb-tick-right" id="sbTickRight"></span>
+    </div>
+  </div>
+
+</div>
+
+<!-- CORS 차단 안내 모달 -->
+<div id="blockedModal" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); align-items:center; justify-content:center; padding:20px;">
+  <div style="background:#111c2e; border:0.5px solid rgba(255,255,255,0.15); border-radius:14px; max-width:480px; padding:28px; display:flex; flex-direction:column; gap:16px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+    <div style="font-size:2.5rem; text-align:center;">🔒</div>
+    <h3 style="font-size:1.1rem; font-weight:700; color:#ff4d4d; text-align:center; margin-bottom:4px; font-family:inherit;">로컬 파일 보안 차단 감지</h3>
+    <p style="font-size:0.8125rem; color:var(--text-sec); line-height:1.6; text-align:center; margin-bottom:10px; font-family:inherit;">
+      브라우저 보안 정책으로 인해 <strong style="color:var(--text-pri)">file:///</strong> 주소에서는 로컬 온습도 데이터를 직접 가져올 수 없습니다. 
+      <br><br>
+      안전하고 원활한 실시간 연동을 위해 아래의 웹 서버 주소로 직접 접속해 주세요!
+    </p>
+    <a href="http://localhost:8765" style="display:block; text-align:center; padding:12px; border-radius:8px; background:var(--accent); color:#0b1120; font-weight:700; font-size:0.875rem; text-decoration:none; transition:opacity .15s; font-family:inherit;" onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=1">
+      웹 대시보드로 이동하기 (클릭)
+    </a>
+    <button onclick="document.getElementById('blockedModal').style.display='none'" style="background:none; border:none; color:var(--text-dim); font-size:0.6875rem; cursor:pointer; text-decoration:underline; font-family:inherit;">
+      그냥 닫고 로컬 파일로 보기 (실시간 연동 미작동)
+    </button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   색상 팔레트 — 1호실(진함) → 6호실(밝음) 그라데이션
+   온도: 빨강→주황→노랑   습도: 남색→청록→초록
+   ═══════════════════════════════════════════════════ */
+const TEMP_COLORS  = ['#d62828','#f25c05','#f7941d','#f9c74f','#e9c46a','#ffe169'];
+const HUMID_COLORS = ['#1e3faa','#2176ff','#0d9ec8','#00b4a6','#07bc8a','#2dcc5f'];
+
+/* ═══════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════ */
+const state = {
+  allRows:    [],
+  viewStart:  null,
+  viewEnd:    null,
+  tempRooms:  [true,true,true,true,true,true],
+  humidRooms: [true,true,true,true,true,true],
+  showTarget: true,
+};
+
+/* 현재 렌더 뷰 (플러그인이 참조) */
+let currentViewRows = [];
+let currentDsInfo   = [];
+let currentShowT    = true;
+let currentShowH    = true;
+let chartInst       = null;
+
+/* ── 관리자 모드 ── */
+const IS_ADMIN = /[?&]admin=1/.test(location.search);
+if (IS_ADMIN) {
+  document.getElementById('uploadLabel').style.display = '';
+  document.getElementById('saveBtn').style.display     = '';
+  document.getElementById('clearBtn').style.display    = '';
+}
+document.getElementById('emptyMsg').textContent =
+  IS_ADMIN ? '온습도 데이터가 없습니다.\n파일을 업로드해 주세요.' : '온습도 데이터가 없습니다.';
+
+/* ── Clock ── */
+function updateClock() {
+  document.getElementById('liveClock').textContent =
+    new Date().toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',
+      hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+}
+updateClock(); setInterval(updateClock,1000);
+
+/* ── Toast ── */
+let _toastTmr = null;
+function showToast(msg, ms = 2400) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(_toastTmr);
+  _toastTmr = setTimeout(() => el.classList.remove('show'), ms);
+}
+
+/* ── 유틸 ── */
+function p(n) { return String(n).padStart(2,'0'); }
+function fmtMs(ms)     { const d=new Date(ms); return `${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+function fmtMsFull(ms) { const d=new Date(ms); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
+function safeMin(arr) { let m=Infinity;  for (const v of arr) if (v<m) m=v; return m; }
+function safeMax(arr) { let m=-Infinity; for (const v of arr) if (v>m) m=v; return m; }
+
+/* ═══════════════════════════════════════════════════
+   localStorage 저장 / 복원
+   ═══════════════════════════════════════════════════ */
+const LS_DATA = 'thdb_rows';
+const LS_OPTS = 'thdb_opts';
+const LS_META = 'thdb_meta';
+
+function saveToStorage() {
+  try {
+    const opts = { tempRooms: state.tempRooms, humidRooms: state.humidRooms, showTarget: state.showTarget };
+    const meta = { savedAt: Date.now(),
+                   fileName: document.getElementById('fileName').textContent || '',
+                   rowCount: state.allRows.length };
+    localStorage.setItem(LS_DATA, JSON.stringify(state.allRows));
+    localStorage.setItem(LS_OPTS, JSON.stringify(opts));
+    localStorage.setItem(LS_META, JSON.stringify(meta));
+    updateSaveStatus(meta.savedAt);
+    showToast('💾 저장 완료 — 일반 모드에서도 데이터가 표시됩니다');
+  } catch(err) {
+    const msg = err.name === 'QuotaExceededError'
+      ? '데이터가 너무 큽니다 (5MB 초과). 기간을 줄여 저장해 주세요.'
+      : err.message;
+    showToast('❌ 저장 실패: ' + msg, 4000);
+  }
+}
+
+function loadFromStorage() {
+  try {
+    const rawData = localStorage.getItem(LS_DATA);
+    if (!rawData) return false;
+    const rows = JSON.parse(rawData);
+    if (!rows || !rows.length) return false;
+    state.allRows = rows;
+
+    const rawOpts = localStorage.getItem(LS_OPTS);
+    if (rawOpts) {
+      const opts = JSON.parse(rawOpts);
+      if (Array.isArray(opts.tempRooms))  state.tempRooms  = opts.tempRooms;
+      if (Array.isArray(opts.humidRooms)) state.humidRooms = opts.humidRooms;
+      if (opts.showTarget !== undefined) {
+        state.showTarget = opts.showTarget;
+        document.getElementById('chkTarget').checked = opts.showTarget;
+      }
+    }
+
+    const rawMeta = localStorage.getItem(LS_META);
+    if (rawMeta) {
+      const meta = JSON.parse(rawMeta);
+      if (meta.rowCount) {
+        document.getElementById('fileInfo').style.display = '';
+        document.getElementById('fileName').textContent   = meta.fileName || '저장된 데이터';
+        document.getElementById('fileRowCount').textContent = ` (${Number(meta.rowCount).toLocaleString()}행)`;
+      }
+      updateSaveStatus(meta.savedAt);
+    }
+    return true;
+  } catch(err) { return false; }
+}
+
+function updateSaveStatus(savedAt) {
+  const el = document.getElementById('saveStatus');
+  if (!el) return;
+  let ts = savedAt;
+  if (!ts) {
+    try { ts = JSON.parse(localStorage.getItem(LS_META))?.savedAt; } catch(e) {}
+  }
+  if (ts) {
+    const d = new Date(ts);
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mn = String(d.getMinutes()).padStart(2,'0');
+    el.textContent = `💾 ${mm}/${dd} ${hh}:${mn} 저장됨`;
+  } else {
+    el.textContent = '';
+  }
+}
+
+/* 옵션만 저장 (데이터 재기록 없음 — 용량 절약) */
+function saveOptsOnly() {
+  if (!localStorage.getItem(LS_DATA)) return;   // 저장된 데이터 없으면 skip
+  try {
+    const opts = { tempRooms: state.tempRooms, humidRooms: state.humidRooms, showTarget: state.showTarget };
+    localStorage.setItem(LS_OPTS, JSON.stringify(opts));
+  } catch(e) {}
+}
+
+function clearStorage() {
+  if (!confirm('저장된 데이터를 모두 삭제하시겠습니까?\n(일반 모드에서도 데이터가 사라집니다)')) return;
+  localStorage.removeItem(LS_DATA);
+  localStorage.removeItem(LS_OPTS);
+  localStorage.removeItem(LS_META);
+  state.allRows = []; state.viewStart = null; state.viewEnd = null;
+  document.getElementById('fileInfo').style.display = 'none';
+  document.getElementById('saveStatus').textContent  = '';
+  buildFilterBtns();
+  scheduleDrawChart();
+  showToast('🗑️ 저장된 데이터가 삭제되었습니다');
+}
+
+/* ═══════════════════════════════════════════════════
+   FILE UPLOAD  (관리자 모드에서만)
+   ═══════════════════════════════════════════════════ */
+document.getElementById('tempHumidInput').addEventListener('change', function(e) {
+  if (!IS_ADMIN) { showToast('⚠️ 관리자 모드에서만 업로드 가능합니다 (?admin=1)'); return; }
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, { type:'array', cellDates:true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json(ws, { raw:false });
+      if (!rawRows.length) { showToast('⚠️ 파일에 데이터가 없습니다.'); return; }
+      const parsed = parseTempHumidExcel(rawRows);
+      if (!parsed || !parsed.length) { showToast('⚠️ 온습도 데이터 형식 인식 불가.'); return; }
+      state.allRows = parsed; state.viewStart = null; state.viewEnd = null;
+      document.getElementById('fileInfo').style.display = '';
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('fileRowCount').textContent = ` (${parsed.length.toLocaleString()}행)`;
+      buildFilterBtns();
+      applyPreset('all');
+      showToast(`✅ ${file.name} — ${parsed.length.toLocaleString()}개 포인트 로드`);
+      saveToStorage();   // 업로드 즉시 자동 저장
+    } catch(err) { showToast('❌ 파일 오류: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+});
+
+/* ── Excel parser (full format support) ── */
+function parseTempHumidExcel(rawRows) {
+  let headerIdx=-1, timeKey=null, sensorKey=null, valKey=null;
+  for (let i=0; i<rawRows.length; i++) {
+    const row = rawRows[i];
+    const vals = Object.values(row).map(v => String(v).replace(/\s+/g,''));
+    if (vals.includes('저장일시') && vals.some(v => v.includes('센서유형'))) {
+      headerIdx = i;
+      for (const [k,v] of Object.entries(row)) {
+        const cv = String(v).replace(/\s+/g,'');
+        if (cv==='저장일시') timeKey=k;
+        if (cv.includes('센서유형')) sensorKey=k;
+        if (cv==='측정값') valKey=k;
+      }
+      break;
+    }
+  }
+  if (headerIdx!==-1 && timeKey && sensorKey && valKey) {
+    const groups = {};
+    for (let i=headerIdx+1; i<rawRows.length; i++) {
+      const row=rawRows[i];
+      let tVal=row[timeKey], sVal=row[sensorKey], vVal=row[valKey];
+      if (!tVal||!sVal||vVal==null) continue;
+      tVal=String(tVal).trim(); sVal=String(sVal).trim();
+      const fVal=parseFloat(vVal); if (isNaN(fVal)) continue;
+      const rm=sVal.match(/\((\d+)\)/); if (!rm) continue;
+      const rn=parseInt(rm[1]); if (rn<1||rn>6) continue;
+      const type = sVal.toLowerCase().includes('rhum')||sVal.toLowerCase().includes('습도') ? 'humid'
+                 : sVal.toLowerCase().includes('rtemp')||sVal.toLowerCase().includes('온도') ? 'temp' : null;
+      if (!type) continue;
+      const tm = tVal.slice(0,16);
+      if (!groups[tm]) groups[tm] = { time: tm+':00' };
+      const kn = `room${rn}_${type}`;
+      groups[tm][kn] = groups[tm][kn]==null ? fVal : Math.round(((groups[tm][kn]+fVal)/2)*10)/10;
+    }
+    return Object.values(groups).sort((a,b) => new Date(a.time.replace(/-/g,'/')) - new Date(b.time.replace(/-/g,'/')));
+  }
+  const TK=['시간','일시','date','time','datetime','timestamp','등록일시'];
+  const sample=rawRows[0]; let tKey=null;
+  for (const k of Object.keys(sample)) { if (TK.some(t=>k.toLowerCase().includes(t))) { tKey=k; break; } }
+  if (!tKey) tKey=Object.keys(sample)[0];
+  const RK=['양생실','구분','호기','양생실명','room','chamber']; let rKey=null;
+  for (const k of Object.keys(sample)) { if (RK.some(r=>k.toLowerCase().includes(r))) { rKey=k; break; } }
+  const TMP=['온도','temp','temperature','temp.']; const HUM=['습도','humid','humidity','humi'];
+  const result=[];
+  if (rKey) {
+    let tCol=null, hCol=null;
+    for (const k of Object.keys(sample)) {
+      if (TMP.some(t=>k.toLowerCase().includes(t))) tCol=k;
+      if (HUM.some(h=>k.toLowerCase().includes(h))) hCol=k;
+    }
+    if (tCol && hCol) {
+      const groups={};
+      rawRows.forEach(r => {
+        const tVal=String(r[tKey]||'').trim(); if (!tVal) return;
+        const rm=String(r[rKey]).trim().match(/(\d+)/); if (!rm) return;
+        const rn=parseInt(rm[1]); if (rn<1||rn>6) return;
+        if (!groups[tVal]) groups[tVal]={time:tVal};
+        const tv=parseFloat(r[tCol]); groups[tVal][`room${rn}_temp`] =isNaN(tv)?null:tv;
+        const hv=parseFloat(r[hCol]); groups[tVal][`room${rn}_humid`]=isNaN(hv)?null:hv;
+      });
+      return Object.values(groups).sort((a,b) => new Date(a.time)-new Date(b.time));
+    }
+  }
+  const cols=Object.keys(sample);
+  rawRows.forEach(r => {
+    const tVal=String(r[tKey]||'').trim(); if (!tVal) return;
+    const entry={time:tVal}; let has=false;
+    for (let i=1; i<=6; i++) {
+      const tc=cols.find(c=>c.includes(String(i))&&TMP.some(t=>c.toLowerCase().includes(t)));
+      const hc=cols.find(c=>c.includes(String(i))&&HUM.some(h=>c.toLowerCase().includes(h)));
+      if (tc) { const v=parseFloat(r[tc]); entry[`room${i}_temp`] =isNaN(v)?null:v; has=true; }
+      if (hc) { const v=parseFloat(r[hc]); entry[`room${i}_humid`]=isNaN(v)?null:v; has=true; }
+    }
+    if (has) result.push(entry);
+  });
+  return result.sort((a,b) => new Date(a.time.replace(/-/g,'/')) - new Date(b.time.replace(/-/g,'/')));
+}
+
+/* ═══════════════════════════════════════════════════
+   FILTER BUTTONS
+   ═══════════════════════════════════════════════════ */
+function buildFilterBtns() {
+  ['temp','humid'].forEach(type => {
+    const colors   = type==='temp' ? TEMP_COLORS : HUMID_COLORS;
+    const arr      = type==='temp' ? state.tempRooms : state.humidRooms;
+    const container= document.getElementById(type+'RoomBtns');
+    container.innerHTML='';
+    for (let i=0; i<6; i++) {
+      const btn=document.createElement('button');
+      btn.className='room-btn'; btn.textContent=String(i+1);
+      btn.dataset.type=type; btn.dataset.idx=i;
+      styleRoomBtn(btn,arr[i],colors[i]);
+      btn.onclick=()=>{ arr[i]=!arr[i]; styleRoomBtn(btn,arr[i],colors[i]); scheduleDrawChart(); saveOptsOnly(); };
+      container.appendChild(btn);
+    }
+  });
+}
+function styleRoomBtn(btn,active,color) {
+  btn.style.borderColor = active ? color : 'rgba(255,255,255,0.12)';
+  btn.style.color       = active ? color : 'rgba(240,244,255,0.25)';
+  btn.style.background  = active ? color+'22' : 'transparent';
+}
+function toggleAll(type) {
+  const arr=type==='temp'?state.tempRooms:state.humidRooms;
+  const allOn=arr.every(Boolean);
+  for (let i=0;i<6;i++) arr[i]=!allOn;
+  buildFilterBtns(); scheduleDrawChart();
+}
+
+/* ═══════════════════════════════════════════════════
+   DATA RANGE & VIEW
+   ═══════════════════════════════════════════════════ */
+function rowMs(r) { return new Date(r.time.replace(/-/g,'/')).getTime(); }
+function getDataRange() {
+  if (!state.allRows.length) return null;
+  return { min:rowMs(state.allRows[0]), max:rowMs(state.allRows[state.allRows.length-1]) };
+}
+function getViewRows() {
+  if (!state.allRows.length) return [];
+  if (state.viewStart==null && state.viewEnd==null) return state.allRows;
+  return state.allRows.filter(r => {
+    const ms=rowMs(r);
+    return (state.viewStart==null||ms>=state.viewStart) && (state.viewEnd==null||ms<=state.viewEnd);
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   ZOOM / PAN
+   ═══════════════════════════════════════════════════ */
+function clearPresets() { document.querySelectorAll('[id^="preset-"]').forEach(b=>b.classList.remove('active')); }
+
+function applyPreset(preset) {
+  clearPresets();
+  const el=document.getElementById('preset-'+preset); if (el) el.classList.add('active');
+  if (preset==='all'||!state.allRows.length) {
+    state.viewStart=null; state.viewEnd=null;
+  } else {
+    const range=getDataRange();
+    const span={'1h':1,'4h':4,'8h':8,'12h':12,'24h':24}[preset]*3600000;
+    state.viewEnd=range.max; state.viewStart=Math.max(range.min,range.max-span);
+  }
+  syncRangeInputs(); scheduleDrawChart(); updateScrollbar();
+}
+function applyManualRange() {
+  const s=document.getElementById('rangeStart').value;
+  const e=document.getElementById('rangeEnd').value;
+  if (!s&&!e) { applyPreset('all'); return; }
+  state.viewStart=s?new Date(s).getTime():null;
+  state.viewEnd  =e?new Date(e).getTime():null;
+  clearPresets(); scheduleDrawChart(); updateScrollbar();
+}
+function syncRangeInputs() {
+  document.getElementById('rangeStart').value = state.viewStart ? fmtMsFull(state.viewStart) : '';
+  document.getElementById('rangeEnd').value   = state.viewEnd   ? fmtMsFull(state.viewEnd)   : '';
+}
+function zoomStep(dir) {
+  if (!state.allRows.length) return;
+  const range=getDataRange();
+  const cs=state.viewStart??range.min, ce=state.viewEnd??range.max;
+  const center=(cs+ce)/2, factor=dir>0?2:0.5;
+  const newSpan=Math.max(5*60000, Math.min(range.max-range.min, (ce-cs)*factor));
+  state.viewStart=Math.max(range.min, center-newSpan/2);
+  state.viewEnd  =Math.min(range.max, center+newSpan/2);
+  clearPresets(); syncRangeInputs(); scheduleDrawChart(); updateScrollbar();
+  flashZoom(dir>0?'🔍 줌 아웃':'🔍 줌 인');
+}
+function panBy(fraction) {
+  if (!state.allRows.length) return;
+  const range=getDataRange();
+  const cs=state.viewStart??range.min, ce=state.viewEnd??range.max;
+  const span=ce-cs, delta=span*fraction;
+  let ns=Math.max(range.min,cs+delta), ne=ns+span;
+  if (ne>range.max) { ne=range.max; ns=Math.max(range.min,ne-span); }
+  state.viewStart=ns; state.viewEnd=ne;
+  clearPresets(); syncRangeInputs(); scheduleDrawChart(); updateScrollbar();
+}
+function panToMs(newStart) {
+  if (!state.allRows.length) return;
+  const range=getDataRange();
+  const cs=state.viewStart??range.min, ce=state.viewEnd??range.max;
+  const span=ce-cs;
+  const ns=Math.max(range.min, Math.min(range.max-span, newStart));
+  state.viewStart=ns; state.viewEnd=ns+span;
+  clearPresets(); syncRangeInputs(); scheduleDrawChart(); updateScrollbar();
+}
+
+let _zoomTmr=null;
+function flashZoom(msg) {
+  const el=document.getElementById('zoomIndicator');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(_zoomTmr); _zoomTmr=setTimeout(()=>el.classList.remove('show'),1200);
+}
+
+/* ── RAF 스로틀 — 연속 이벤트를 1프레임에 1번만 렌더 ── */
+let _drawRaf=null;
+function scheduleDrawChart() {
+  if (_drawRaf) return;
+  _drawRaf=requestAnimationFrame(()=>{ _drawRaf=null; drawChart(); });
+}
+
+/* ── Keyboard ── */
+document.addEventListener('keydown', e => {
+  if (['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)) return;
+  if (e.key==='+'||e.key==='=') zoomStep(-1);
+  if (e.key==='-'||e.key==='_') zoomStep(1);
+  if (e.key==='f'||e.key==='F'||e.key==='0') applyPreset('all');
+  if (e.key==='ArrowLeft')  panBy(-0.25);
+  if (e.key==='ArrowRight') panBy(+0.25);
+});
+
+/* ── 마우스 휠 줌 ── */
+document.getElementById('chartWrap').addEventListener('wheel', e => {
+  if (!state.allRows.length) return;
+  e.preventDefault();
+  const rect=document.getElementById('chartWrap').getBoundingClientRect();
+  const relX=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+  const range=getDataRange();
+  const cs=state.viewStart??range.min, ce=state.viewEnd??range.max;
+  const span=ce-cs, pivot=cs+span*relX;
+  const factor=e.deltaY>0?1.45:0.69;
+  const newSpan=Math.max(5*60000,Math.min(range.max-range.min,span*factor));
+  let ns=Math.max(range.min,pivot-newSpan*relX);
+  let ne=ns+newSpan;
+  if (ne>range.max) { ne=range.max; ns=Math.max(range.min,ne-newSpan); }
+  state.viewStart=ns; state.viewEnd=ne;
+  clearPresets(); syncRangeInputs(); scheduleDrawChart(); updateScrollbar();
+  flashZoom(factor>1?'🔍 줌 아웃':'🔍 줌 인');
+}, { passive:false });
+
+/* ── 차트 드래그 패닝 ── */
+{
+  const wrap=document.getElementById('chartWrap');
+  let dragging=false, lastX=0;
+  wrap.addEventListener('mousedown', e => {
+    if (!state.allRows.length) return;
+    if (state.viewStart==null&&state.viewEnd==null) return;
+    dragging=true; lastX=e.clientX; wrap.style.cursor='grabbing'; e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const range=getDataRange();
+    const cs=state.viewStart??range.min, ce=state.viewEnd??range.max;
+    const span=ce-cs;
+    const rect=wrap.getBoundingClientRect();
+    const deltaMs=-(e.clientX-lastX)/rect.width*span;
+    lastX=e.clientX;
+    if (Math.abs(deltaMs)<50) return;
+    panToMs(cs+deltaMs);
+  });
+  document.addEventListener('mouseup', ()=>{ dragging=false; wrap.style.cursor=''; });
+}
+
+/* ═══════════════════════════════════════════════════
+   PAN SCROLLBAR
+   ═══════════════════════════════════════════════════ */
+function updateScrollbar() {
+  const bar  =document.getElementById('panScrollbar');
+  const thumb=document.getElementById('panThumb');
+  const range=getDataRange();
+  const isZoomed=state.viewStart!=null||state.viewEnd!=null;
+  if (!range||!isZoomed) { bar.classList.remove('visible'); return; }
+  bar.classList.add('visible');
+  const fullSpan=range.max-range.min;
+  const cs=state.viewStart??range.min, ce=state.viewEnd??range.max;
+  const trackW=bar.offsetWidth;
+  const thumbW=Math.max(20,Math.round((ce-cs)/fullSpan*trackW));
+  const thumbL=Math.round((cs-range.min)/fullSpan*trackW);
+  thumb.style.left =thumbL+'px';
+  thumb.style.width=thumbW+'px';
+  document.getElementById('sbTickLeft').textContent =fmtMs(range.min);
+  document.getElementById('sbTickRight').textContent=fmtMs(range.max);
+}
+{
+  const bar  =document.getElementById('panScrollbar');
+  const thumb=document.getElementById('panThumb');
+  let sbDrag=false, sbX0=0, sbMs0=0;
+  thumb.addEventListener('mousedown', e => {
+    sbDrag=true; sbX0=e.clientX;
+    const range=getDataRange();
+    sbMs0=state.viewStart??(range?range.min:0);
+    thumb.classList.add('dragging'); e.stopPropagation(); e.preventDefault();
+  });
+  bar.addEventListener('mousedown', e => {
+    if (e.target===thumb) return;
+    const range=getDataRange(); if (!range) return;
+    const rect=bar.getBoundingClientRect();
+    const relX=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+    const cs=state.viewStart??range.min, ce=state.viewEnd??range.max;
+    panToMs(range.min+relX*(range.max-range.min)-(ce-cs)/2);
+  });
+  document.addEventListener('mousemove', e => {
+    if (!sbDrag) return;
+    const range=getDataRange(); if (!range) return;
+    const rect=bar.getBoundingClientRect();
+    panToMs(sbMs0+(e.clientX-sbX0)/rect.width*(range.max-range.min));
+  });
+  document.addEventListener('mouseup', ()=>{ sbDrag=false; thumb.classList.remove('dragging'); });
+}
+
+/* ═══════════════════════════════════════════════════
+   SUMMARY
+   ═══════════════════════════════════════════════════ */
+function calcMKT(temps) {
+  if (!temps||!temps.length) return null;
+  const dHR=10000; let sum=0, cnt=0;
+  for (const t of temps) { if (t!=null) { sum+=Math.exp(-dHR/(t+273.15)); cnt++; } }
+  if (!cnt) return null;
+  return Math.round((-dHR/Math.log(sum/cnt)-273.15)*10)/10;
+}
+function updateSummary(viewRows) {
+  const allT=[], allH=[];
+  for (let i=0; i<6; i++) {
+    if (state.tempRooms[i])  for (const r of viewRows) { const v=r[`room${i+1}_temp`];  if (v!=null) allT.push(v); }
+    if (state.humidRooms[i]) for (const r of viewRows) { const v=r[`room${i+1}_humid`]; if (v!=null) allH.push(v); }
+  }
+  const mkt=calcMKT(allT);
+  document.getElementById('sc-mkt').textContent       = mkt!=null?`${mkt}°C`:'—';
+  document.getElementById('sc-mkt-sub').textContent   = allT.length?`${viewRows.length}개 포인트`:'데이터 없음';
+  if (allT.length) {
+    const mn=safeMin(allT), mx=safeMax(allT);
+    document.getElementById('sc-temp-range').textContent     = `${mn}°C ~ ${mx}°C`;
+    document.getElementById('sc-temp-range-sub').textContent = `편차 ${Math.round((mx-mn)*10)/10}°C`;
+  } else {
+    document.getElementById('sc-temp-range').textContent     = '—';
+    document.getElementById('sc-temp-range-sub').textContent = '';
+  }
+  const avgH=allH.length?Math.round(allH.reduce((a,b)=>a+b,0)/allH.length):null;
+  document.getElementById('sc-humid').textContent     = avgH!=null?`${avgH}%`:'—';
+  document.getElementById('sc-humid-sub').textContent = allH.length?`${allH.length}개 포인트`:'';
+  if (allH.length) {
+    const mn=safeMin(allH), mx=safeMax(allH);
+    document.getElementById('sc-humid-range').textContent     = `${mn}% ~ ${mx}%`;
+    document.getElementById('sc-humid-range-sub').textContent = `편차 ${mx-mn}%`;
+  } else {
+    document.getElementById('sc-humid-range').textContent     = '—';
+    document.getElementById('sc-humid-range-sub').textContent = '';
+  }
+  document.getElementById('sc-points').textContent     = viewRows.length.toLocaleString();
+  document.getElementById('sc-points-sub').textContent = `전체 ${state.allRows.length.toLocaleString()}개 중`;
+  if (viewRows.length>=2) {
+    const ms1=rowMs(viewRows[0]), ms2=rowMs(viewRows[viewRows.length-1]);
+    const diff=ms2-ms1;
+    const hh=Math.floor(diff/3600000), mm=Math.floor((diff%3600000)/60000);
+    document.getElementById('sc-duration').textContent     = hh>0?`${hh}시간 ${mm}분`:`${mm}분`;
+    const d1=viewRows[0].time.slice(0,10), d2=viewRows[viewRows.length-1].time.slice(0,10);
+    document.getElementById('sc-duration-sub').textContent = d1===d2?d1:`${d1} ~ ${d2}`;
+  } else {
+    document.getElementById('sc-duration').textContent     = '—';
+    document.getElementById('sc-duration-sub').textContent = '';
+  }
+  const pct=viewRows.length&&state.allRows.length?Math.round(viewRows.length/state.allRows.length*100):0;
+  document.getElementById('zoomInfo').textContent = viewRows.length?`표시 ${viewRows.length.toLocaleString()}개 / ${pct}%`:'—';
+}
+
+/* ═══════════════════════════════════════════════════
+   차트 플러그인 (모듈 레벨 — chart 인스턴스와 생명주기 공유)
+   ═══════════════════════════════════════════════════ */
+const targetLinesPlugin = {
+  id: 'thTargetLines',
+  afterDraw(chart) {
+    if (!state.showTarget) return;
+    const { ctx, chartArea:{left,right,top,bottom} } = chart;
+    const yT=chart.scales.yTemp, yH=chart.scales.yHumid;
+    ctx.save(); ctx.setLineDash([5,4]);
+    if (currentShowT && yT && yT.display!==false) {
+      const y=yT.getPixelForValue(22);
+      if (y>=top && y<=bottom) {
+        ctx.strokeStyle='rgba(255,100,100,0.5)'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(right,y); ctx.stroke();
+        ctx.fillStyle='#ff9f9f'; ctx.font='500 9px "Noto Sans KR",sans-serif';
+        ctx.textAlign='right'; ctx.textBaseline='bottom'; ctx.fillText('22°C (Target)',right-4,y-2);
+      }
+    }
+    if (currentShowH && yH && yH.display!==false) {
+      const y=yH.getPixelForValue(70);
+      if (y>=top && y<=bottom) {
+        ctx.strokeStyle='rgba(74,158,255,0.5)'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(right,y); ctx.stroke();
+        ctx.fillStyle='#78b5ff'; ctx.font='500 9px "Noto Sans KR",sans-serif';
+        ctx.textAlign='left'; ctx.textBaseline='bottom'; ctx.fillText('70% (Target)',left+4,y-2);
+      }
+    }
+    ctx.restore();
+  }
+};
+
+const peakLabelsPlugin = {
+  id: 'thPeakLabels',
+  afterDraw(chart) {
+    const { ctx, chartArea } = chart;
+    const { left, right, top, bottom } = chartArea;
+    const xScale = chart.scales.x;
+    if (!xScale) return;
+
+    currentDsInfo.forEach(({ data, yAxisID, color }) => {
+      const scale = chart.scales[yAxisID];
+      if (!scale || scale.display===false) return;
+      const unit = yAxisID==='yTemp' ? '°C' : '%';
+
+      /* 유효 포인트 수집 */
+      const valid = [];
+      for (let i=0; i<data.length; i++) { if (data[i]!=null) valid.push({v:data[i], i}); }
+      if (valid.length < 2) return;
+
+      const mxPt   = valid.reduce((a,b) => b.v>a.v ? b : a, valid[0]);
+      const mnPt   = valid.reduce((a,b) => b.v<a.v ? b : a, valid[0]);
+      const lastPt = valid[valid.length-1];
+
+      ctx.save();
+      ctx.font = '600 9px "Noto Sans KR",sans-serif';
+
+      /* ── 공통 드로어 ── */
+      function drawMark(pt, labelStr, above, isLast) {
+        const px = xScale.getPixelForValue(pt.i);
+        const py = scale.getPixelForValue(pt.v);
+        if (px < left-2 || px > right+2) return;
+
+        /* 포인트 원 */
+        ctx.beginPath(); ctx.arc(px,py, isLast?3:3.5, 0, 2*Math.PI);
+        ctx.fillStyle   = isLast ? color : '#0b1120';
+        ctx.strokeStyle = color; ctx.lineWidth=1.8;
+        ctx.fill(); ctx.stroke();
+
+        if (isLast) {
+          /* 마지막값: 오른쪽 플로팅 레이블 */
+          const ly = Math.max(top+8, Math.min(bottom-8, py));
+          const tx = Math.min(px+6, right-2);
+          ctx.fillStyle=color; ctx.textAlign='left'; ctx.textBaseline='middle';
+          ctx.fillText(labelStr, tx, ly);
+          ctx.restore(); return;
+        }
+
+        /* 최고/최저 레이블 — Y 경계 클램핑 */
+        const MARGIN = 13;
+        let ly = above ? py-MARGIN : py+MARGIN+4;
+        /* 범위 이탈 시 반대편으로 */
+        if (above && ly < top+9)    ly = py+MARGIN+4;
+        if (!above && ly > bottom-5) ly = py-MARGIN;
+        ly = Math.max(top+9, Math.min(bottom-5, ly));
+
+        /* X 정렬 */
+        const lw = ctx.measureText(labelStr).width;
+        let lx=px, align='center';
+        if (px-lw/2 < left+4)  { lx=left+4;  align='left';  }
+        else if (px+lw/2 > right-4) { lx=right-4; align='right'; }
+
+        ctx.fillStyle=color; ctx.textAlign=align; ctx.textBaseline='middle';
+        ctx.fillText(labelStr, lx, ly);
+        ctx.restore();
+      }
+
+      /* ─── 항상 최고값 표시 ─── */
+      drawMark(mxPt, `▲${mxPt.v}${unit}`, true, false);
+
+      /* ─── 항상 최저값 표시 ─── */
+      /* 최저가 최고와 같은 인덱스면(데이터 하나뿐)도 표시 */
+      /* 최저가 마지막 포인트와 같은 인덱스여도 별도 마크 */
+      const mnIsLast = mnPt.i === lastPt.i;
+      const mnIsSameAsMx = mnPt.i === mxPt.i && mxPt.v !== mnPt.v;
+      if (!mnIsLast) {
+        drawMark(mnPt, `▼${mnPt.v}${unit}`, false, false);
+      } else {
+        /* 최저 = 마지막 포인트: 마지막 레이블 아래에 최저 표시 */
+        const px = xScale.getPixelForValue(mnPt.i);
+        const py = scale.getPixelForValue(mnPt.v);
+        if (px >= left && px <= right) {
+          ctx.save();
+          ctx.font = '600 9px "Noto Sans KR",sans-serif';
+          const lw = ctx.measureText(`▼${mnPt.v}${unit}`).width;
+          let lx=px, align='center';
+          if (px-lw/2 < left+4)  { lx=left+4;  align='left';  }
+          else if (px+lw/2 > right-4) { lx=right-4; align='right'; }
+          /* 마지막 레이블과 겹치지 않게 아래에 */
+          const ly = Math.max(top+9, Math.min(bottom-5, py+26));
+          ctx.fillStyle=color; ctx.textAlign=align; ctx.textBaseline='middle';
+          ctx.fillText(`▼${mnPt.v}${unit}`, lx, ly);
+          ctx.restore();
+        }
+      }
+
+      /* ─── 최신값 (마지막) ─── */
+      drawMark(lastPt, `${lastPt.v}${unit}`, false, true);
+    });
+  }
+};
+
+/* ═══════════════════════════════════════════════════
+   차트 초기화 (한 번만 생성, 이후 update로 갱신)
+   ═══════════════════════════════════════════════════ */
+function ensureChart() {
+  if (chartInst) return;
+  chartInst = new Chart(document.getElementById('curingCanvas'), {
+    type: 'line',
+    data: { labels:[], datasets:[] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: false,           /* 팬 중 깜빡임 완전 제거 */
+      layout: { padding:{ right:56 } },
+      plugins: {
+        legend: { display:false },
+        tooltip: {
+          mode:'index', intersect:false,
+          bodyFont:{ size:10 },
+          callbacks: { title: items => { const r=currentViewRows[items[0]?.dataIndex]; return r?r.time:items[0]?.label||''; } }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display:false },
+          ticks: { color:'rgba(240,244,255,0.45)', font:{size:8}, maxTicksLimit:16 }
+        },
+        yTemp: {
+          type:'linear', position:'left', min:17, max:29, display:true,
+          grid: { color:'rgba(255,255,255,0.05)' },
+          title: { display:true, text:'온도 (°C)', color:'#ff6b6b', font:{size:9,weight:600} },
+          ticks: { color:'#ff6b6b', font:{size:8}, stepSize:2 }
+        },
+        yHumid: {
+          type:'linear', position:'right', min:40, max:100, display:true,
+          grid: { display:false },
+          title: { display:true, text:'습도 (%)', color:'#54a0ff', font:{size:9,weight:600} },
+          ticks: { color:'#54a0ff', font:{size:8}, stepSize:10 }
+        }
+      }
+    },
+    plugins: [targetLinesPlugin, peakLabelsPlugin]
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   메인 렌더 — update('none') 로 프레임드롭 없이 매끄럽게
+   ═══════════════════════════════════════════════════ */
+function drawChart() {
+  const viewRows = getViewRows();
+  const emptyEl  = document.getElementById('emptyState');
+
+  if (!viewRows.length) {
+    emptyEl.style.display='flex';
+    currentViewRows=[]; currentDsInfo=[];
+    if (chartInst) { chartInst.data.labels=[]; chartInst.data.datasets=[]; chartInst.update('none'); }
+    updateSummary([]);
+    return;
+  }
+  emptyEl.style.display='none';
+  currentViewRows = viewRows;
+  updateSummary(viewRows);
+
+  const spanMs   = viewRows.length>=2 ? rowMs(viewRows[viewRows.length-1])-rowMs(viewRows[0]) : 0;
+  const showDate = spanMs > 86400000;
+  const wrapW    = document.getElementById('chartWrap').offsetWidth || 900;
+  const maxTicks = Math.max(6, Math.min(20, Math.floor(wrapW/75)));
+  const labels   = viewRows.map(r => showDate ? r.time.slice(5,16) : r.time.slice(11,16));
+
+  const datasets = [];
+  currentDsInfo  = [];
+  let minT=18, maxT=28;
+  let minH=100, maxH=0;   // 습도 동적 범위 (데이터에서 직접 계산)
+
+  for (let i=0; i<6; i++) {
+    const rn=i+1;
+    const temps  = viewRows.map(r => r[`room${rn}_temp`]);
+    const humids = viewRows.map(r => r[`room${rn}_humid`]);
+    if (state.tempRooms[i]) {
+      for (const v of temps)  { if (v!=null) { if (v<minT) minT=v; if (v>maxT) maxT=v; } }
+      datasets.push({ label:`${rn}호 온도`, data:temps,
+        borderColor:TEMP_COLORS[i], backgroundColor:TEMP_COLORS[i]+'18',
+        borderWidth:1.8, pointRadius:0, pointHoverRadius:4, tension:0.3, yAxisID:'yTemp' });
+      currentDsInfo.push({ data:temps,  yAxisID:'yTemp',  color:TEMP_COLORS[i] });
+    }
+    if (state.humidRooms[i]) {
+      for (const v of humids) { if (v!=null) { if (v<minH) minH=v; if (v>maxH) maxH=v; } }
+      datasets.push({ label:`${rn}호 습도`, data:humids,
+        borderColor:HUMID_COLORS[i], backgroundColor:HUMID_COLORS[i]+'18',
+        borderWidth:1.5, pointRadius:0, pointHoverRadius:4, tension:0.3, yAxisID:'yHumid' });
+      currentDsInfo.push({ data:humids, yAxisID:'yHumid', color:HUMID_COLORS[i] });
+    }
+  }
+
+  /* 습도 축 범위 — 데이터 없으면 기본값 */
+  if (minH > maxH) { minH=0; maxH=100; }   // 활성 습도 계열 없음
+  const humidAxisMin = Math.max(0,  Math.floor(minH - 5));
+  const humidAxisMax = Math.min(100, Math.ceil(maxH  + 5));
+
+  currentShowT = state.tempRooms.some(Boolean);
+  currentShowH = state.humidRooms.some(Boolean);
+
+  ensureChart();
+
+  /* 데이터 교체 */
+  chartInst.data.labels   = labels;
+  chartInst.data.datasets = datasets;
+
+  /* 축 옵션 갱신 — 온도·습도 모두 데이터 기반 동적 범위 */
+  chartInst.options.scales.yTemp.min      = Math.floor(minT-1);
+  chartInst.options.scales.yTemp.max      = Math.ceil(maxT+1);
+  chartInst.options.scales.yTemp.display  = currentShowT;
+  chartInst.options.scales.yHumid.min     = humidAxisMin;
+  chartInst.options.scales.yHumid.max     = humidAxisMax;
+  chartInst.options.scales.yHumid.display = currentShowH;
+  chartInst.options.scales.x.ticks.maxTicksLimit = maxTicks;
+
+  /* 애니메이션 없이 즉시 렌더 (프레임 점프 없음) */
+  chartInst.update('none');
+}
+
+/* ═══════════════════════════════════════════════════
+   실시간 연동 — 로컬 프록시(proxy_server.py) 연결
+   ═══════════════════════════════════════════════════ */
+const PROXY_URL = (() => {
+  if (window.location.protocol === 'file:') {
+    return 'http://localhost:8765';
+  }
+  const isLocal = window.location.hostname === 'localhost' || 
+                  window.location.hostname === '127.0.0.1' || 
+                  window.location.hostname.startsWith('192.168.');
+  if (isLocal) {
+    return window.location.protocol + '//' + window.location.hostname + ':8765';
+  } else {
+    return window.location.protocol + '//' + window.location.hostname + ':8090';
+  }
+})();
+const LIVE_INTERVAL_MS = 2 * 60 * 1000;   // 2분마다 자동 갱신
+let   liveTimer    = null;
+let   liveConnected = false;
+
+async function liveFetch() {
+  const dot  = document.getElementById('liveDot');
+  const txt  = document.getElementById('liveText');
+  try {
+    const res  = await fetch(`${PROXY_URL}/api/data`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+
+    if (!json.rows || !json.rows.length) {
+      setLiveStatus('orange', '데이터 수집 중...');
+      return;
+    }
+
+    // 데이터 적용
+    state.allRows   = json.rows;
+    state.viewStart = null;
+    state.viewEnd   = null;
+
+    // 파일정보 표시
+    const upAt = json.updatedAt ? new Date(json.updatedAt) : new Date();
+    const hhmm = `${String(upAt.getHours()).padStart(2,'0')}:${String(upAt.getMinutes()).padStart(2,'0')}`;
+    document.getElementById('fileInfo').style.display = '';
+    document.getElementById('fileName').textContent   = 'tempcare.kr 실시간';
+    document.getElementById('fileRowCount').textContent = ` (${json.totalRows.toLocaleString()}행 · ${hhmm} 갱신)`;
+
+    buildFilterBtns();
+    if (!liveConnected) applyPreset('all');   // 첫 연결 시 전체 보기
+    else scheduleDrawChart();
+
+    liveConnected = true;
+    if (json.loginOk) {
+      let isDelayed = false;
+      if (json.rows && json.rows.length > 0) {
+        const lastRowTime = new Date(json.rows[json.rows.length - 1].time.replace(/-/g, '/')).getTime();
+        if (Date.now() - lastRowTime > 60 * 60 * 1000) isDelayed = true;
+      }
+      if (isDelayed) {
+        setLiveStatus('orange', `연결중 · ${hhmm}`);
+      } else {
+        setLiveStatus('limegreen', `연결됨 · ${hhmm}`);
+      }
+    } else {
+      setLiveStatus('orange', `세션 만료 (수집 중단) · ${hhmm}`);
+    }
+
+  } catch(e) {
+    liveConnected = false;
+    setLiveStatus('#555', '프록시 미연결');
+    if (txt) txt.title = e.message;
+  }
+}
+
+function setLiveStatus(color, msg) {
+  const dot = document.getElementById('liveDot');
+  const txt = document.getElementById('liveText');
+  if (dot) dot.style.background = color;
+  if (txt) txt.textContent = msg;
+}
+
+function startLiveMode() {
+  document.getElementById('liveStatus').style.display = 'flex';
+  liveFetch();
+  liveTimer = setInterval(liveFetch, LIVE_INTERVAL_MS);
+}
+
+function liveRefreshNow() {
+  fetch(`${PROXY_URL}/api/refresh`).catch(()=>{});
+  showToast('↺ 서버에 갱신 요청 전송...');
+  setTimeout(liveFetch, 3000);   // 3초 후 데이터 재조회
+}
+
+/* 프록시 서버가 실행 중인지 확인 후 자동 시작 */
+async function checkAndStartLive() {
+  try {
+    const res = await fetch(`${PROXY_URL}/api/status`, { cache:'no-store' });
+    if (res.ok) {
+      startLiveMode();
+    } else {
+      document.getElementById('liveStatus').style.display = 'flex';
+      setLiveStatus('#555', '서버 응답 오류');
+    }
+  } catch(e) {
+    document.getElementById('liveStatus').style.display = 'flex';
+    setLiveStatus('#555', '프록시 미연결');
+    if (window.location.protocol === 'file:') {
+      showBlockedGuide();
+    }
+  }
+}
+
+async function injectSessionKey() {
+  const currentKey = localStorage.getItem('last_jsessionid') || '';
+  const key = prompt('tempcare.kr 로그인 후 복사한 JSESSIONID 값을 입력해 주세요:', currentKey);
+  if (key === null) return;
+  
+  const trimmedKey = key.strip ? key.strip() : key.trim();
+  if (!trimmedKey) {
+    showToast('❌ 세션 키가 비어 있습니다.');
+    return;
+  }
+
+  showToast('🔑 세션 갱신 및 검증 시도 중...');
+  try {
+    const res = await fetch(`${PROXY_URL}/api/session?key=${encodeURIComponent(trimmedKey)}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    
+    if (json.ok) {
+      localStorage.setItem('last_jsessionid', trimmedKey);
+      showToast('✅ 세션 갱신 성공! 실시간 데이터를 불러옵니다.');
+      setTimeout(liveFetch, 1000);
+    } else {
+      showToast('❌ 세션 검증 실패: 유효하지 않은 쿠키 값입니다.', 4000);
+    }
+  } catch(e) {
+    showToast('❌ 서버 연결 실패: ' + e.message, 4000);
+  }
+}
+
+function showBlockedGuide() {
+  const modal = document.getElementById('blockedModal');
+  if (modal) {
+    modal.style.display = 'flex';
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   INIT — localStorage 복원 후 렌더
+   ═══════════════════════════════════════════════════ */
+{
+  const restored = loadFromStorage();
+  buildFilterBtns();
+  if (restored) {
+    applyPreset('all');
+  } else {
+    drawChart();
+    updateScrollbar();
+  }
+  updateSaveStatus();
+  checkAndStartLive();         // 프록시 서버 자동 감지 → 실시간 모드 전환
+}
+</script>
+</body>
+</html>

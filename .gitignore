@@ -1,0 +1,16 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# IDE and temporary folders
+.gemini/
+scratch/
+
+# Backup folders and files
+Back-up/
+*backup*
+
+# Large data Excel reports (original source data)
+tempcare_data_report_*.xls
+*.xls
+*.xlsx

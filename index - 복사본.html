@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>통합 모니터링 포털</title>
+  <meta name="description" content="아하마 생산 공정 현황 및 양생실 온습도 실시간 모니터링 통합 포털">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Outfit:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --board-gradient: linear-gradient(135deg, rgba(248, 250, 252, 0.6) 0%, rgba(241, 245, 249, 0.8) 100%);
+      --card-bg: rgba(255, 255, 255, 0.7);
+      --card-border: rgba(0, 0, 0, 0.06);
+      --accent: #10b981;
+      --accent-glow: rgba(16, 185, 129, 0.3);
+      --accent-blue: #3b82f6;
+      --text-pri: #1e293b;
+      --text-sec: #64748b;
+      --text-dim: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 100vw; min-height: 100vh;
+      background: var(--bg);
+      font-family: 'Outfit','Noto Sans KR',sans-serif;
+      color: var(--text-pri);
+      overflow-x: hidden;
+    }
+
+    /* ── ADMIN TOOLBAR ─────────────────────────── */
+    #adminToolbar {
+      display: none;
+      position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+      background: rgba(255, 255, 255, 0.85);
+      border-bottom: 1px solid rgba(16, 185, 129, 0.2);
+      backdrop-filter: blur(12px);
+      padding: 8px 20px;
+      align-items: center; gap: 10px;
+      flex-wrap: wrap;
+    }
+    #adminToolbar.show { display: flex; }
+    .admin-badge {
+      font-size: 0.6875rem; font-weight: 700; letter-spacing: 2px;
+      color: var(--accent); text-transform: uppercase;
+      background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 3px 10px; border-radius: 20px;
+    }
+    .admin-hint { font-size: 0.75rem; color: var(--text-sec); flex: 1; }
+    .admin-btn {
+      background: #ffffff; border: 1px solid #cbd5e1;
+      color: var(--text-pri); border-radius: 6px; padding: 6px 14px;
+      font-size: 0.75rem; cursor: pointer; font-family: inherit; font-weight: 600;
+      transition: all .15s;
+    }
+    .admin-btn:hover { background: #f1f5f9; }
+    .admin-btn.primary {
+      background: var(--accent); color: #ffffff; border-color: var(--accent);
+    }
+    .admin-btn.primary:hover { opacity: .85; }
+
+
+
+    /* ── PAGE WRAPPER ──────────────────────────── */
+    #pageWrap {
+      min-height: 100vh; display: flex; flex-direction: column;
+      width: 100vw; padding: 40px 20px;
+      transition: padding-top .2s;
+    }
+    body.admin-on #pageWrap { padding-top: 76px; }
+
+    /* ── HEADER & LOGO ─────────────────────────── */
+    header {
+      position: relative; z-index: 10;
+      width: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      margin-bottom: 20px;
+    }
+    
+    #headerLogoWrap {
+      position: absolute; z-index: 20;
+      border-radius: 8px;
+    }
+    #headerLogoWrap:hover { transform: none; }
+    body.admin-on #headerLogoWrap { border: 1.5px dashed rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.05); }
+    #headerLogoWrap img { width: 100%; height: 100%; object-fit: contain; }
+    
+    .header-text { text-align: center; position: relative; z-index: 10; padding-top: 20px; }
+    #portalTitle {
+      font-size: clamp(1.8rem, 3vw, 2.8rem); font-weight: 700; letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 12px; display: block;
+      border-radius: 6px; padding: 2px 6px;
+      transition: background-color .15s;
+    }
+    body.admin-on #portalTitle {
+      cursor: pointer; outline: none; -webkit-text-fill-color: unset; color: #0f172a;
+    }
+    body.admin-on #portalTitle:hover { background-color: rgba(16, 185, 129, 0.1); }
+    body.admin-on #portalTitle:focus {
+      background-color: rgba(16, 185, 129, 0.15);
+      outline: 1px solid rgba(16, 185, 129, 0.5); border-radius: 6px;
+    }
+    #portalSubtitle {
+      font-size: clamp(0.85rem, 1.2vw, 1.1rem); color: var(--text-sec); font-weight: 400;
+      max-width: 800px; margin: 0 auto; line-height: 1.6; display: block;
+    }
+    body.admin-on #portalSubtitle {
+      cursor: pointer; border-radius: 4px; padding: 2px 4px;
+    }
+    body.admin-on #portalSubtitle:hover { background: rgba(0,0,0,0.04); }
+    body.admin-on #portalSubtitle:focus { outline: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.05); }
+
+    /* ── FREE BOARD ────────────────────────────── */
+    #board {
+      position: relative; z-index: 10;
+      width: 100%; flex: 1;
+      margin-bottom: 30px;
+      background: var(--board-gradient);
+      border-radius: 24px;
+      border: 1px solid rgba(226, 232, 240, 0.5);
+      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.01);
+    }
+
+    /* ── PORTAL CARD ───────────────────────────── */
+    .portal-card {
+      position: absolute;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border-radius: 1.2vw;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+      display: flex; flex-direction: column;
+      transition: border-color .3s, box-shadow .3s;
+      user-select: none;
+    }
+    .portal-card:not(.no-hover):hover {
+      border-color: var(--hover-glow-color, rgba(16, 185, 129, 0.4));
+      box-shadow: 0 15px 35px var(--hover-shadow-color, rgba(0, 0, 0, 0.12));
+    }
+    .portal-card.production { --hover-glow-color: rgba(16, 185, 129, 0.4); --hover-shadow-color: rgba(16, 185, 129, 0.15); }
+    .portal-card.tempcare   { --hover-glow-color: rgba(59, 130, 246, 0.4); --hover-shadow-color: rgba(59, 130, 246, 0.15); }
+
+    .card-link {
+      flex: 1; display: flex; flex-direction: column; justify-content: space-between;
+      padding: clamp(12px, 1.8vw, 26px); text-decoration: none; color: var(--text-pri);
+    }
+    .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1vw; }
+    .card-img-wrap {
+      width: clamp(32px, 4vw, 56px); height: clamp(32px, 4vw, 56px); border-radius: 0.8vw; overflow: hidden;
+      background: rgba(0, 0, 0, 0.03); border: 1px solid rgba(0, 0, 0, 0.05);
+      display: flex; align-items: center; justify-content: center;
+      font-size: clamp(1rem, 2vw, 2rem); flex-shrink: 0; transition: all .3s;
+    }
+    .portal-card:hover .card-img-wrap { background: var(--icon-bg, rgba(0, 0, 0, 0.06)); transform: scale(1.05); }
+    .portal-card.production { --icon-bg: rgba(16, 185, 129, 0.1); }
+    .portal-card.tempcare   { --icon-bg: rgba(59, 130, 246, 0.1); }
+    .card-img-wrap img { width: 100%; height: 100%; object-fit: cover; }
+
+    .badge {
+      font-size: clamp(0.5rem, 0.7vw, 0.6875rem); font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+      padding: 0.3vw 0.8vw; border-radius: 20px;
+      background: rgba(0, 0, 0, 0.04); border: 1px solid rgba(0, 0, 0, 0.06); color: var(--text-sec);
+    }
+    .card-middle { margin-bottom: 1vw; }
+    .card-title { font-size: clamp(0.9rem, 1.2vw, 1.3rem); font-weight: 700; color: var(--text-pri); margin-bottom: 0.5vw; }
+    .card-desc  { font-size: clamp(0.7rem, 0.9vw, 0.95rem); color: var(--text-sec); line-height: 1.5; }
+
+    .card-bottom { display: flex; align-items: center; gap: 8px; font-size: clamp(0.6rem, 0.8vw, 0.8rem); font-weight: 600; color: var(--accent-text, var(--text-sec)); }
+    .portal-card.production { --accent-text: var(--accent); }
+    .portal-card.tempcare   { --accent-text: #2563eb; }
+    .arrow-icon { transition: transform .3s; }
+    .portal-card:hover .arrow-icon { transform: translateX(4px); }
+
+    /* ── ADMIN OVERLAY (카드 위) ────────────────── */
+    .card-admin-bar {
+      display: none; position: absolute; top: 0; left: 0; right: 0;
+      background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(4px); border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      padding: 6px 10px; gap: 6px; align-items: center; z-index: 20;
+      border-radius: 1.2vw 1.2vw 0 0; flex-wrap: wrap;
+    }
+    body.admin-on .card-admin-bar { display: flex; }
+    .card-admin-btn {
+      background: #ffffff; border: 1px solid #cbd5e1;
+      color: #334155; border-radius: 5px; padding: 3px 8px; font-size: 0.625rem;
+      cursor: pointer; font-family: inherit; transition: background .15s; font-weight: 500;
+    }
+    .card-admin-btn:hover { background: #f1f5f9; }
+    .card-admin-btn.danger:hover { background: #fee2e2; border-color: #fca5a5; color: #ef4444; }
+    .drag-handle { cursor: grab; color: var(--text-dim); font-size: 0.875rem; padding: 2px 4px; }
+    .drag-handle:active { cursor: grabbing; }
+
+    /* 리사이즈 핸들 */
+    .rs { position: absolute; z-index: 30; background: transparent; transition: background .1s; }
+    .rs:hover, .rs.active { background: rgba(16, 185, 129, 0.5); }
+    .rs-n  { top:-3px;    left:14px;   right:14px;  height:6px;  cursor:n-resize; }
+    .rs-s  { bottom:-3px; left:14px;   right:14px;  height:6px;  cursor:s-resize; }
+    .rs-e  { right:-3px;  top:14px;    bottom:14px; width:6px;   cursor:e-resize; }
+    .rs-w  { left:-3px;   top:14px;    bottom:14px; width:6px;   cursor:w-resize; }
+    .rs-ne { top:-4px;    right:-4px;  width:14px;  height:14px; cursor:ne-resize; }
+    .rs-nw { top:-4px;    left:-4px;   width:14px;  height:14px; cursor:nw-resize; }
+    .rs-se { bottom:-4px; right:-4px;  width:14px;  height:14px; cursor:se-resize; }
+    .rs-sw { bottom:-4px; left:-4px;   width:14px;  height:14px; cursor:sw-resize; }
+    body.admin-on .portal-card, body.admin-on #headerLogoWrap { cursor: move; }
+    body.admin-on .portal-card .card-link { cursor: default; pointer-events: none; }
+    body:not(.admin-on) .rs { display: none; }
+    body.is-dragging, body.is-resizing { user-select: none; }
+
+    /* ── ADD PROJECT BUTTON (header 우측) ──────── */
+    #addProjectBtn {
+      position: absolute; z-index: 20;
+      display: none;
+      flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+      background: rgba(16, 185, 129, 0.08);
+      border: 1.5px dashed rgba(16, 185, 129, 0.45);
+      border-radius: 10px; padding: 8px 16px;
+      color: var(--accent); font-weight: 700;
+      font-size: clamp(0.65rem, 1vw, 0.85rem);
+      transition: background .15s, border-color .15s;
+      user-select: none; white-space: nowrap;
+    }
+    body.admin-on #addProjectBtn { display: flex; cursor: move; }
+    #addProjectBtn:hover { background: rgba(16, 185, 129, 0.15); border-color: var(--accent); }
+
+    /* ── DRAFT CARD ─────────────────────────────── */
+    .portal-card.draft-card { border-style: dashed; border-color: rgba(100,116,139,0.4); background: rgba(248,250,252,0.5); }
+    .portal-card.draft-card:hover { border-color: var(--accent); }
+    .draft-card-inner {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; padding: 20px; text-align: center; cursor: pointer; border-radius: 8px; transition: background .15s;
+    }
+    .draft-card-inner:hover { background: rgba(16,185,129,0.05); }
+
+    /* ── MODAL ─────────────────────────────────── */
+    .modal-bg {
+      display: none; position: fixed; inset: 0; z-index: 99999;
+      background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-bg.open { display: flex; }
+    .modal-card {
+      background: #ffffff; border: 1px solid #e2e8f0;
+      border-radius: 16px; width: 100%; max-width: 480px;
+      display: flex; flex-direction: column; box-shadow: 0 20px 40px rgba(0,0,0,0.15); max-height: 90vh;
+    }
+    .modal-hd {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px 20px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0;
+    }
+    .modal-hd h3 { font-size: 0.95rem; font-weight: 700; color: var(--accent); }
+    .modal-hd h3::before { content: '▎'; margin-right: 6px; }
+    .modal-close {
+      background: none; border: 1px solid #cbd5e1; color: var(--text-sec);
+      width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 0.875rem;
+      transition: all .2s; display: flex; align-items: center; justify-content: center;
+    }
+    .modal-close:hover { color: #0f172a; border-color: #94a3b8; }
+    .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+    .s-group { margin-bottom: 14px; }
+    .s-group label { display: block; font-size: 0.625rem; color: var(--text-sec); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; font-weight: 700; }
+    .s-group input[type=text], .s-group textarea {
+      width: 100%; background: #f8fafc; border: 1px solid #cbd5e1;
+      border-radius: 8px; padding: 8px 12px; color: var(--text-pri); font-size: 0.8125rem;
+      font-family: inherit; outline: none; transition: border-color .15s;
+    }
+    .s-group input:focus, .s-group textarea:focus { border-color: var(--accent); }
+    .s-actions { display: flex; gap: 10px; margin-top: 16px; }
+    .btn-primary {
+      flex: 1; padding: 9px; border-radius: 8px; cursor: pointer; font-size: 0.8125rem; font-weight: 700; border: none; background: var(--accent); color: #ffffff; transition: opacity .2s; font-family: inherit;
+    }
+    .btn-primary:hover { opacity: .9; }
+    .btn-ghost {
+      flex: 1; padding: 9px; border-radius: 8px; cursor: pointer; font-size: 0.8125rem; font-weight: 600; background: #f1f5f9; border: 1px solid #cbd5e1; color: var(--text-sec); font-family: inherit; transition: all .2s;
+    }
+    .btn-ghost:hover { color: var(--text-pri); background: #e2e8f0; }
+
+    .img-upload-area {
+      width: 100%; aspect-ratio: 16/9; border-radius: 10px; border: 1.5px dashed rgba(16, 185, 129, 0.4);
+      display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; transition: border-color .15s; margin-bottom: 6px; background: #f8fafc;
+    }
+    .img-upload-area:hover { border-color: var(--accent); }
+    .img-upload-area img { width: 100%; height: 100%; object-fit: cover; }
+    .img-upload-area .upload-hint { color: var(--text-dim); font-size: 0.75rem; text-align: center; padding: 10px; }
+
+    /* ── FOOTER ────────────────────────────────── */
+    footer {
+      position: relative; z-index: 10; width: 100%;
+      display: flex; justify-content: space-between; align-items: center;
+      border-top: 1px solid rgba(0, 0, 0, 0.06); padding-top: 24px; font-size: 0.75rem; color: var(--text-dim); padding-bottom: 10px;
+    }
+    .clock-container { font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 6px; color: var(--text-sec); }
+    .clock-dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; }
+
+    #toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(8px);
+      background: #ffffff; border: 1px solid var(--accent); border-radius: 8px; padding: 9px 18px; font-size: 0.75rem; color: var(--text-pri); box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; z-index: 999999; white-space: nowrap;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<input type="file" id="logoFileInput" accept="image/*" style="display:none">
+
+<input type="file" id="orderExcelInput" accept=".xlsx,.xls,.csv" style="display:none">
+<div id="adminToolbar">
+  <span class="admin-badge">🔧 관리자 모드</span>
+  <span class="admin-hint">요소를 드래그하여 이동하고 모서리를 당겨 크기를 조절하세요. (이웃 카드 근처로 가면 자동 스냅됩니다. Shift를 누르면 무시됨)</span>
+  <button class="admin-btn" onclick="document.getElementById('orderExcelInput').click()" title="수주현황 엑셀 파일을 업로드하면 신규 현장 추가 시 수주번호 목록에 자동 반영됩니다">📋 수주현황 업로드</button>
+  <button class="admin-btn" onclick="resetAllLayout()">↻ 배치 초기화</button>
+  <button class="admin-btn primary" onclick="savePortalData()">💾 전체 저장하기</button>
+</div>
+
+
+
+<div id="pageWrap">
+  <header id="mainHeader">
+    <div id="headerLogoWrap">
+      <div class="card-admin-bar" style="background:rgba(0,0,0,0.8); border-radius:8px 8px 0 0;">
+        <span class="drag-handle" title="이동">⠿</span>
+        <button class="card-admin-btn" onclick="triggerLogoUpload()">🖼️ 로고 업로드</button>
+      </div>
+      <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+        <img id="portalLogoImg" style="display:none;">
+        <div id="portalLogoPlaceholder" style="color:var(--text-dim);text-align:center;">
+          <div style="font-size:1.5rem;">🖼️</div><div style="font-size:0.6rem;">로고 배치</div>
+        </div>
+      </div>
+      <div class="rs rs-n"></div><div class="rs rs-s"></div><div class="rs rs-e"></div><div class="rs rs-w"></div>
+      <div class="rs rs-ne"></div><div class="rs rs-nw"></div><div class="rs rs-se"></div><div class="rs rs-sw"></div>
+    </div>
+    
+    <div id="addProjectBtn">
+      <span style="font-size:1.3rem;">➕</span>
+      <span>신규 현장 추가</span>
+    </div>
+
+    <div class="header-text">
+      <h1><span id="portalTitle" contenteditable="false" spellcheck="false">통합 모니터링 시스템</span></h1>
+      <p id="portalSubtitle" contenteditable="false" spellcheck="false" class="subtitle">
+        공정 생산 현황 및 양생실 온습도 실시간 모니터링 대시보드에 접근할 수 있는 통합 웹 제어반 포털입니다.
+      </p>
+    </div>
+  </header>
+
+  <!-- FREE BOARD -->
+  <div id="board"></div>
+
+  <footer>
+    <div>© 2026 AHAMA. All Rights Reserved.</div>
+    <div class="clock-container">
+      <div class="clock-dot"></div>
+      <span id="liveClockDisplay"></span>
+    </div>
+  </footer>
+</div>
+
+<!-- Add Modal -->
+<div id="addCardModal" class="modal-bg" onclick="if(event.target===this)closeAddModal()">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <h3>신규 현장 대시보드 추가</h3>
+      <button class="modal-close" onclick="closeAddModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="s-group"><label>프로젝트 이름</label><input type="text" id="addName" placeholder="예: 인천 청라 현장"></div>
+      <div class="s-group"><label>프로젝트 번호 (영문, 숫자, -, _ 허용)</label><input type="text" id="addNo" placeholder="예: 20261113-2"></div>
+      <div class="s-group"><label>설명</label><textarea id="addDesc" placeholder="현장 간략 설명"></textarea></div>
+      <div class="s-actions">
+        <button class="btn-ghost" onclick="closeAddModal()">취소</button>
+        <button class="btn-primary" onclick="doAddCard()">추가하기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="editCardModal" class="modal-bg" onclick="if(event.target===this)closeEditModal()">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <h3>카드 편집</h3>
+      <button class="modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="s-group">
+        <label>투시도 / 대표 이미지</label>
+        <div class="img-upload-area" id="editImgPreviewWrap" onclick="triggerCardImgUpload()">
+          <div class="upload-hint">클릭하여 이미지 업로드<br>(공사 투시도, 현장 사진 등)</div>
+        </div>
+        <input type="file" id="cardImgFileInput" accept="image/*" style="display:none">
+      </div>
+      <div class="s-group" id="editProjectNoGroup">
+        <label id="editProjectSelectLabel">수주번호로 자동입력 <span style="font-weight:400;color:var(--text-sec)">(서버에 등록된 현장 선택)</span></label>
+        <select id="editProjectSelect" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-family:inherit;font-size:0.85rem;color:var(--text-pri);background:#fff;">
+          <option value="">-- 목록 불러오는 중... --</option>
+        </select>
+        <label style="margin-top:8px;">프로젝트 번호 <span id="editProjectNoHint" style="font-weight:400;color:var(--text-sec)">(수주번호, 영문·숫자·-·_ 허용)</span></label>
+        <input type="text" id="editProjectNo" placeholder="예: 20261113-2">
+      </div>
+      <div class="s-group"><label>배지 텍스트</label><input type="text" id="editBadge"></div>
+      <div class="s-group"><label>프로젝트명</label><input type="text" id="editTitle"></div>
+      <div class="s-group"><label>설명</label><textarea id="editDesc"></textarea></div>
+      <div class="s-group"><label>하단 링크 텍스트</label><input type="text" id="editLinkText"></div>
+      <input type="hidden" id="editCardId">
+      <div class="s-actions">
+        <button class="btn-ghost" onclick="closeEditModal()">취소</button>
+        <button class="btn-primary" id="editSaveBtn" onclick="doEditCard()">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const state = {
+  portalTitle: '통합 모니터링 시스템',
+  portalSubtitle: '공정 생산 현황 및 양생실 온습도 실시간 모니터링 대시보드에 접근할 수 있는 통합 웹 제어반 포털입니다.',
+  logoSrc: '',
+  logoLayout: {},    // x, y, w, h as fractions of HEADER WIDTH
+  addBtnLayout: {},  // x, y as fractions of HEADER WIDTH/HEIGHT
+  cards: [
+    { id: 'yangpyeong', type: 'fixed', name: '양평동 생산 대시보드', badge: '현장 생산', desc: 'SK 영등포 양평동 프로젝트의 조립, 글레이징, 포장, 출하, 설치 공정 생산실적 현황판', linkText: '모니터링 진입하기', imageSrc: '', href: 'dashboard/production_dashboard.html?project=20251113-1', colorClass: 'production' },
+    { id: 'tempcare', type: 'fixed', name: '양생실 실시간 온습도', badge: '실시간 온습도', desc: '1호실부터 6호실까지의 양생실 내부 온도 및 습도 실시간 트렌드 및 유효 인증 상태 조회', linkText: '모니터링 진입하기', imageSrc: '', href: 'dashboard/temp.html', colorClass: 'tempcare' }
+  ],
+  layout: {} // cards layout
+};
+
+function isAdmin() { return new URLSearchParams(window.location.search).get('admin') === '1'; }
+function applyAdminMode() {
+  if (!isAdmin()) return;
+  document.body.classList.add('admin-on');
+  document.getElementById('adminToolbar').classList.add('show');
+  document.getElementById('portalTitle').contentEditable = 'true';
+  document.getElementById('portalSubtitle').contentEditable = 'true';
+}
+
+function updateClock() {
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  const days = ['일','월','화','수','목','금','토'];
+  document.getElementById('liveClockDisplay').textContent = `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())}(${days[d.getDay()]}) ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+setInterval(updateClock, 1000); updateClock();
+
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+function esc(s) { return String(s||'').replace(/[&<>'"/]/g, t => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;','/':'&#47;'}[t]||t)); }
+
+// LOGO UPLOAD
+function triggerLogoUpload() { document.getElementById('logoFileInput').click(); }
+document.getElementById('logoFileInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    state.logoSrc = ev.target.result;
+    const img = document.getElementById('portalLogoImg');
+    const ph = document.getElementById('portalLogoPlaceholder');
+    if(img){ img.src = state.logoSrc; img.style.display = 'block'; }
+    if(ph){ ph.style.display = 'none'; }
+  };
+  r.readAsDataURL(f); e.target.value = '';
+});
+
+// CARD IMG UPLOAD
+function triggerCardImgUpload() { document.getElementById('cardImgFileInput').click(); }
+document.getElementById('cardImgFileInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    const wrap = document.getElementById('editImgPreviewWrap');
+    wrap.innerHTML = `<img src="${ev.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
+    wrap.dataset.imgSrc = ev.target.result;
+  };
+  r.readAsDataURL(f); e.target.value = '';
+});
+
+function getBoard() { return document.getElementById('board'); }
+
+function calcDefaultLayout() {
+  const layout = {};
+  const cols = 4; const gap = 0.02;
+  const cardW = (1 - gap * (cols + 1)) / cols;
+  const cardH = cardW * 0.8;
+  const startY = 0.02;
+  state.cards.forEach((c, i) => {
+    const col = i % cols; const row = Math.floor(i / cols);
+    layout[c.id] = { x: gap + col * (cardW + gap), y: startY + row * (cardH + gap), w: cardW, h: cardH };
+  });
+  return layout;
+}
+
+function calcDefaultAddBtnLayout() {
+  return { x: 0.58, y: 0.25, w: 0.12, h: 0.5 };
+}
+
+function calcDefaultLogoLayout() {
+  return { x: 0.15, y: 0.1, w: 0.15, h: 0.8 }; // 헤더 기준 비율
+}
+
+function buildBoard() {
+  const board = getBoard(); board.innerHTML = '';
+
+  const RS = `<div class="rs rs-n"></div><div class="rs rs-s"></div><div class="rs rs-e"></div><div class="rs rs-w"></div><div class="rs rs-ne"></div><div class="rs rs-nw"></div><div class="rs rs-se"></div><div class="rs rs-sw"></div>`;
+
+  // Cards
+  state.cards.forEach(c => {
+    const div = document.createElement('div');
+    div.id = 'card-'+c.id; div.dataset.cardId = c.id;
+
+    if (c.type === 'draft') {
+      // ── 빈 드래프트 카드 (미설정 현장) ──
+      div.className = 'portal-card draft-card';
+      div.innerHTML = `
+        ${isAdmin() ? `<div class="card-admin-bar"><span class="drag-handle">⠿</span><button class="card-admin-btn danger" onclick="deleteCard('${esc(c.id)}')">✕ 삭제</button></div>` : ''}
+        <div class="draft-card-inner" onclick="openEditModal('${esc(c.id)}')">
+          <div style="font-size:2rem;">📋</div>
+          <span style="color:var(--accent);font-weight:700;font-size:clamp(0.7rem,1vw,0.9rem);">클릭하여 현장 정보 입력</span>
+          <small style="color:var(--text-dim);font-size:0.7rem;">프로젝트 번호, 이름 등<br>설정 후 저장하세요</small>
+        </div>
+        ${RS}
+      `;
+      board.appendChild(div);
+      return;
+    }
+
+    // ── 일반 카드 ──
+    div.className = `portal-card ${c.colorClass||'production'}`;
+    div.innerHTML = `
+      <div class="card-admin-bar">
+        <span class="drag-handle">⠿</span>
+        <button class="card-admin-btn" onclick="openEditModal('${esc(c.id)}')">✎ 편집</button>
+        ${c.type!=='fixed'?`<button class="card-admin-btn danger" onclick="deleteCard('${esc(c.id)}')">✕ 삭제</button>`:''}
+      </div>
+      <a class="card-link" href="${esc(c.href||'#')}">
+        <div class="card-top">
+          <div class="card-img-wrap">${c.imageSrc?`<img src="${esc(c.imageSrc)}">`:(c.colorClass==='tempcare'?'🌡️':'📊')}</div>
+          <span class="badge">${esc(c.badge)}</span>
+        </div>
+        <div class="card-middle">
+          <h2 class="card-title">${esc(c.name)}</h2><p class="card-desc">${esc(c.desc)}</p>
+        </div>
+        <div class="card-bottom"><span>${esc(c.linkText||'진입하기')}</span><span class="arrow-icon">→</span></div>
+      </a>
+      ${RS}
+    `;
+    board.appendChild(div);
+  });
+
+  applyLayout();
+  if (isAdmin()) initDragResize();
+}
+
+// Layout uses board Width for ALL dimensions to ensure perfect proportional scaling.
+function applyLayout() {
+  const board = getBoard();
+  const bW = board.offsetWidth || 1000;
+  let maxBottomH = 0;
+
+  // Set card elements
+  state.cards.forEach(c => {
+    const el = document.getElementById('card-' + c.id);
+    const L = state.layout[c.id];
+    if (!el || !L) return;
+    el.style.left   = (L.x * bW) + 'px';
+    el.style.top    = (L.y * bW) + 'px';
+    el.style.width  = (L.w * bW) + 'px';
+    el.style.height = (L.h * bW) + 'px';
+    maxBottomH = Math.max(maxBottomH, (L.y + L.h) * bW);
+  });
+  board.style.minHeight = (maxBottomH + 50) + 'px';
+
+  // Logo & Add Button layout (Header relative)
+  const header = document.getElementById('mainHeader');
+  const hW = header.offsetWidth || 1000;
+  const hH = header.offsetHeight || 150;
+
+  const lWp = document.getElementById('headerLogoWrap');
+  if (state.logoLayout && lWp) {
+    const lL = state.logoLayout;
+    lWp.style.left = (lL.x * hW) + 'px';
+    lWp.style.top = (lL.y * hH) + 'px';
+    lWp.style.width = (lL.w * hW) + 'px';
+    lWp.style.height = (lL.h * hH) + 'px';
+  }
+
+  const addBtn = document.getElementById('addProjectBtn');
+  if (addBtn && state.addBtnLayout && Object.keys(state.addBtnLayout).length) {
+    const aL = state.addBtnLayout;
+    addBtn.style.left = (aL.x * hW) + 'px';
+    addBtn.style.top  = (aL.y * hH) + 'px';
+  }
+}
+
+function resetAllLayout() { 
+  if (!confirm('마지막으로 저장된 배치로 돌아가시겠습니까? (저장되지 않은 위치 변경사항은 취소됩니다)')) return;
+  
+  fetch('./dashboard/data_portal_index.json?_='+Date.now(), {cache:'no-cache'})
+    .then(res => res.ok ? res.json() : Promise.reject('no data'))
+    .then(d => {
+      if(d.logoLayout) state.logoLayout = d.logoLayout;
+      if(d.layout) {
+        state.layout = d.layout;
+        // 새로 추가되었지만 아직 저장 안된 카드가 있다면 상단에 정렬
+        let unplacedX = 0.05;
+        state.cards.forEach(c => {
+          if(!state.layout[c.id]) {
+            state.layout[c.id] = { x: unplacedX, y: 0.05, w: 0.22, h: 0.16 };
+            unplacedX += 0.24;
+          }
+        });
+      } else {
+        state.layout = calcDefaultLayout();
+      }
+      applyLayout(); 
+      if (isAdmin()) initDragResize(); 
+      showToast('최근 저장된 배치로 정렬되었습니다.');
+    })
+    .catch(e => {
+      state.layout = calcDefaultLayout(); 
+      applyLayout(); 
+      if (isAdmin()) initDragResize(); 
+      showToast('저장된 배치가 없어 기본 격자로 초기화되었습니다.'); 
+    });
+}
+
+function initDragResize() {
+  // Cards Drag/Resize
+  getBoard().querySelectorAll('.portal-card').forEach(card => {
+    const id = card.dataset.cardId;
+    const minWFrac = 0.12; // fraction of board
+    const minHFrac = 0.12;
+    
+    // Drag
+    card.addEventListener('mousedown', e => {
+      if (!isAdmin()) return;
+      if (e.target.classList.contains('rs') || e.target.closest('.card-admin-bar')) return;
+      e.preventDefault();
+      document.body.classList.add('is-dragging'); card.classList.add('no-hover');
+      const bW = getBoard().offsetWidth;
+      const startX = e.clientX, startY = e.clientY;
+      const origL = state.layout[id] ? {...state.layout[id]} : {x:0,y:0,w:0.2,h:0.2};
+
+      function onMove(ev) {
+        let dx = ev.clientX - startX; let dy = ev.clientY - startY;
+        let nx = origL.x + dx/bW; let ny = origL.y + dy/bW;
+        
+        // Snapping logic
+        if (!ev.shiftKey) {
+          let xL=[], yL=[];
+          Object.keys(state.layout).forEach(k => {
+            if (k===id) return; const l=state.layout[k];
+            xL.push(l.x, l.x+l.w, l.x+l.w/2); yL.push(l.y, l.y+l.h, l.y+l.h/2);
+          });
+          const sD = 12/bW;
+          const snap = (v, lines) => { let c=v, m=sD; for(let l of lines){ let d=Math.abs(v-l); if(d<m){m=d;c=l;} } return c; };
+          
+          let sx = snap(nx, xL);
+          if (sx!==nx) dx=(sx-origL.x)*bW;
+          else { let sr=snap(nx+origL.w, xL); if(sr!==nx+origL.w) dx=(sr-origL.w-origL.x)*bW; }
+          
+          let sy = snap(ny, yL);
+          if (sy!==ny) dy=(sy-origL.y)*bW;
+          else { let sb=snap(ny+origL.h, yL); if(sb!==ny+origL.h) dy=(sb-origL.h-origL.y)*bW; }
+        }
+        card.style.left = Math.max(0, origL.x*bW + dx) + 'px';
+        card.style.top  = Math.max(0, origL.y*bW + dy) + 'px';
+      }
+      function onUp(ev) {
+        document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
+        document.body.classList.remove('is-dragging'); card.classList.remove('no-hover');
+        const bW = getBoard().offsetWidth;
+        state.layout[id].x = parseFloat(card.style.left) / bW;
+        state.layout[id].y = parseFloat(card.style.top) / bW;
+        applyLayout();
+      }
+      document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+    });
+
+    // Resize
+    card.querySelectorAll('.rs').forEach(handle => {
+      handle.addEventListener('mousedown', e => {
+        if (!isAdmin()) return;
+        e.preventDefault(); e.stopPropagation();
+        document.body.classList.add('is-resizing'); card.classList.add('no-hover');
+        const bW = getBoard().offsetWidth;
+        const dir = [...handle.classList].find(c=>c.startsWith('rs-')&&c!=='rs').replace('rs-','');
+        const startX = e.clientX, startY = e.clientY;
+        const origL = state.layout[id] ? {...state.layout[id]} : {x:0,y:0,w:0.2,h:0.2};
+
+        function onMove(ev) {
+          let dx = ev.clientX - startX; let dy = ev.clientY - startY;
+          let nx = origL.x, ny = origL.y, nw = origL.w, nh = origL.h;
+          
+          if (dir.includes('e')) nw = Math.max(minWFrac, origL.w + dx/bW);
+          if (dir.includes('s')) nh = Math.max(minHFrac, origL.h + dy/bW);
+          if (dir.includes('w')) { nw = Math.max(minWFrac, origL.w - dx/bW); nx = Math.min(origL.x + origL.w - minWFrac, origL.x + dx/bW); }
+          if (dir.includes('n')) { nh = Math.max(minHFrac, origL.h - dy/bW); ny = Math.min(origL.y + origL.h - minHFrac, origL.y + dy/bW); }
+
+          // Resize Snapping
+          if (!ev.shiftKey) {
+            let xL=[], yL=[];
+            Object.keys(state.layout).forEach(k => {
+              if (k===id) return; const l=state.layout[k];
+              xL.push(l.x, l.x+l.w, l.x+l.w/2); yL.push(l.y, l.y+l.h, l.y+l.h/2);
+            });
+            const sD = 12/bW;
+            const snap = (v, lines) => { let c=v, m=sD; for(let l of lines){ let d=Math.abs(v-l); if(d<m){m=d;c=l;} } return c; };
+            
+            if (dir.includes('e')) { let s=snap(nx+nw, xL); if(s!==nx+nw) nw=Math.max(minWFrac, s-nx); }
+            if (dir.includes('w')) { let s=snap(nx, xL); if(s!==nx){ nw=Math.max(minWFrac, origL.x+origL.w-s); nx=origL.x+origL.w-nw; } }
+            if (dir.includes('s')) { let s=snap(ny+nh, yL); if(s!==ny+nh) nh=Math.max(minHFrac, s-ny); }
+            if (dir.includes('n')) { let s=snap(ny, yL); if(s!==ny){ nh=Math.max(minHFrac, origL.y+origL.h-s); ny=origL.y+origL.h-nh; } }
+          }
+          card.style.left=(nx*bW)+'px'; card.style.top=(ny*bW)+'px'; card.style.width=(nw*bW)+'px'; card.style.height=(nh*bW)+'px';
+        }
+        function onUp(ev) {
+          document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
+          document.body.classList.remove('is-resizing'); card.classList.remove('no-hover');
+          const bW = getBoard().offsetWidth;
+          state.layout[id] = { x: parseFloat(card.style.left)/bW, y: parseFloat(card.style.top)/bW, w: parseFloat(card.style.width)/bW, h: parseFloat(card.style.height)/bW };
+          applyLayout();
+        }
+        document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+      });
+    });
+  });
+
+  // Add Project Button — 드래그: 위치 이동만 / 클릭: createDraftCard()
+  const addBtn = document.getElementById('addProjectBtn');
+  if (addBtn) {
+    addBtn.addEventListener('mousedown', e => {
+      if (!isAdmin()) return;
+      e.preventDefault();
+      document.body.classList.add('is-dragging');
+      const header = document.getElementById('mainHeader');
+      const hW = header.offsetWidth, hH = header.offsetHeight;
+      const startX = e.clientX, startY = e.clientY;
+      const origL = (state.addBtnLayout && Object.keys(state.addBtnLayout).length)
+        ? {...state.addBtnLayout} : calcDefaultAddBtnLayout();
+      let moved = false;
+
+      function onMove(ev) {
+        const dx = ev.clientX - startX, dy = ev.clientY - startY;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+        addBtn.style.left = (origL.x * hW + dx) + 'px';
+        addBtn.style.top  = (origL.y * hH + dy) + 'px';
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.body.classList.remove('is-dragging');
+        if (moved) {
+          // 위치만 저장, 추가 실행 안 함
+          state.addBtnLayout.x = parseFloat(addBtn.style.left) / hW;
+          state.addBtnLayout.y = parseFloat(addBtn.style.top)  / hH;
+          applyLayout();
+        } else {
+          // 클릭 → 신규 현장 추가
+          createDraftCard();
+        }
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+
+  // Logo Drag/Resize
+  const logoWrap = document.getElementById('headerLogoWrap');
+  if (logoWrap) {
+    logoWrap.addEventListener('mousedown', e => {
+      if (!isAdmin()) return;
+      if (e.target.classList.contains('rs') || e.target.closest('.card-admin-bar')) return;
+      e.preventDefault();
+      document.body.classList.add('is-dragging');
+      const header = document.getElementById('mainHeader');
+      const hW = header.offsetWidth, hH = header.offsetHeight;
+      const startX = e.clientX, startY = e.clientY;
+      const origL = state.logoLayout ? {...state.logoLayout} : calcDefaultLogoLayout();
+
+      function onMove(ev) {
+        let dx = ev.clientX - startX; let dy = ev.clientY - startY;
+        logoWrap.style.left = (origL.x * hW + dx) + 'px';
+        logoWrap.style.top  = (origL.y * hH + dy) + 'px';
+      }
+      function onUp(ev) {
+        document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
+        document.body.classList.remove('is-dragging');
+        state.logoLayout.x = parseFloat(logoWrap.style.left) / hW;
+        state.logoLayout.y = parseFloat(logoWrap.style.top) / hH;
+        applyLayout();
+      }
+      document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+    });
+
+    logoWrap.querySelectorAll('.rs').forEach(handle => {
+      handle.addEventListener('mousedown', e => {
+        if (!isAdmin()) return;
+        e.preventDefault(); e.stopPropagation();
+        document.body.classList.add('is-resizing');
+        const header = document.getElementById('mainHeader');
+        const hW = header.offsetWidth, hH = header.offsetHeight;
+        const dir = [...handle.classList].find(c=>c.startsWith('rs-')&&c!=='rs').replace('rs-','');
+        const startX = e.clientX, startY = e.clientY;
+        const origL = state.logoLayout ? {...state.logoLayout} : calcDefaultLogoLayout();
+        const minW = 0.05, minH = 0.1;
+
+        function onMove(ev) {
+          let dx = ev.clientX - startX; let dy = ev.clientY - startY;
+          let nx = origL.x, ny = origL.y, nw = origL.w, nh = origL.h;
+          if (dir.includes('e')) nw = Math.max(minW, origL.w + dx/hW);
+          if (dir.includes('s')) nh = Math.max(minH, origL.h + dy/hH);
+          if (dir.includes('w')) { nw = Math.max(minW, origL.w - dx/hW); nx = Math.min(origL.x + origL.w - minW, origL.x + dx/hW); }
+          if (dir.includes('n')) { nh = Math.max(minH, origL.h - dy/hH); ny = Math.min(origL.y + origL.h - minH, origL.y + dy/hH); }
+          logoWrap.style.left=(nx*hW)+'px'; logoWrap.style.top=(ny*hH)+'px'; logoWrap.style.width=(nw*hW)+'px'; logoWrap.style.height=(nh*hH)+'px';
+        }
+        function onUp(ev) {
+          document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
+          document.body.classList.remove('is-resizing');
+          state.logoLayout = { x: parseFloat(logoWrap.style.left)/hW, y: parseFloat(logoWrap.style.top)/hH, w: parseFloat(logoWrap.style.width)/hW, h: parseFloat(logoWrap.style.height)/hH };
+          applyLayout();
+        }
+        document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+      });
+    });
+  }
+}
+
+// Add/Edit Modals
+function closeAddModal() { document.getElementById('addCardModal').classList.remove('open'); }
+
+// 빈 드래프트 카드 생성 (신규 현장 추가 클릭 시)
+function createDraftCard() {
+  const tempId = '__draft__' + Date.now();
+  state.cards.push({ id: tempId, type: 'draft', name: '', badge: '', desc: '', linkText: '모니터링 진입하기', imageSrc: '', href: '#', colorClass: 'production' });
+  let startX = 0.05;
+  while (Object.values(state.layout).some(L => L && Math.abs(L.x - startX) < 0.05 && Math.abs(L.y - 0.05) < 0.05)) {
+    startX += 0.05; if (startX > 0.7) break;
+  }
+  state.layout[tempId] = { x: startX, y: 0.05, w: 0.22, h: 0.16 };
+  buildBoard();
+}
+
+function openEditModal(id) {
+  const c = state.cards.find(c => c.id === id); if (!c) return;
+  document.getElementById('editCardId').value = id;
+  document.getElementById('editBadge').value = c.badge || '';
+  document.getElementById('editTitle').value = c.name || '';
+  document.getElementById('editDesc').value = c.desc || '';
+  document.getElementById('editLinkText').value = c.linkText || '모니터링 진입하기';
+  const wrap = document.getElementById('editImgPreviewWrap'); wrap.dataset.imgSrc = '';
+  if (c.imageSrc) { wrap.innerHTML = `<img src="${esc(c.imageSrc)}" style="width:100%;height:100%;object-fit:cover;">`; wrap.dataset.imgSrc = c.imageSrc; }
+  else { wrap.innerHTML = `<div class="upload-hint">클릭하여 이미지 업로드<br>(공사 투시도, 현장 사진 등)</div>`; }
+  const modalTitle = document.querySelector('#editCardModal .modal-hd h3');
+  const projectNoInput = document.getElementById('editProjectNo');
+  const projectNoHint  = document.getElementById('editProjectNoHint');
+  const selectLabel    = document.getElementById('editProjectSelectLabel');
+
+  if (c.type === 'draft') {
+    // 신규 — 번호 직접 입력 가능
+    projectNoInput.value = '';
+    projectNoInput.readOnly = false;
+    projectNoInput.style.background = '';
+    document.getElementById('editProjectSelect').value = '';
+    if (projectNoHint)  projectNoHint.textContent = '(수주번호, 영문·숫자·-·_ 허용)';
+    if (selectLabel)    selectLabel.firstChild.textContent = '수주번호로 자동입력 ';
+    if (modalTitle)     modalTitle.textContent = '신규 현장 설정';
+    loadProjectSelectOptions();
+    setTimeout(() => projectNoInput.focus(), 50);
+  } else {
+    // 기존 카드 — 번호 수정 가능 (변경 시 해당 data_[no].json으로 연결)
+    projectNoInput.value = c.id || '';
+    projectNoInput.readOnly = false;
+    projectNoInput.style.background = '';
+    document.getElementById('editProjectSelect').value = '';
+    if (projectNoHint)  projectNoHint.textContent = '(변경 시 해당 데이터 파일로 재연결됩니다)';
+    if (selectLabel)    selectLabel.firstChild.textContent = '수주번호로 자동입력 ';
+    if (modalTitle)     modalTitle.textContent = '카드 편집';
+    loadProjectSelectOptions();
+  }
+  document.getElementById('editCardModal').classList.add('open');
+}
+function closeEditModal() { document.getElementById('editCardModal').classList.remove('open'); }
+
+async function doEditCard() {
+  const oldId = document.getElementById('editCardId').value;
+  const c = state.cards.find(c => c.id === oldId); if (!c) return;
+  const badge = document.getElementById('editBadge').value.trim();
+  const name  = document.getElementById('editTitle').value.trim();
+  const desc  = document.getElementById('editDesc').value.trim();
+  const linkText = document.getElementById('editLinkText').value.trim();
+  const imgSrc   = document.getElementById('editImgPreviewWrap').dataset.imgSrc;
+  const btn = document.getElementById('editSaveBtn');
+
+  if (c.type === 'draft') {
+    // ── 드래프트 → 실제 카드 전환 ──
+    const noRaw = document.getElementById('editProjectNo').value.trim();
+    const no = noRaw.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!name) { alert('프로젝트 이름을 입력하세요.'); return; }
+    if (!no)   { alert('프로젝트 번호를 입력하세요.'); return; }
+    if (state.cards.some(x => x.id === no)) { alert('이미 사용 중인 프로젝트 번호입니다.'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = '생성 중...'; }
+    const created = await createProjectDataFile(no, name);
+    if (!created) { if (btn) { btn.disabled = false; btn.textContent = '저장'; } return; }
+    const oldLayout = state.layout[oldId];
+    c.id = no; c.type = 'custom'; c.name = name || '새 현장'; c.badge = badge || '현장 생산';
+    c.desc = desc || '현장 대시보드'; c.linkText = linkText || '모니터링 진입하기';
+    c.href = `dashboard/production_dashboard.html?project=${encodeURIComponent(no)}`;
+    c.colorClass = 'production';
+    if (imgSrc) c.imageSrc = imgSrc;
+    if (oldLayout) { state.layout[no] = oldLayout; delete state.layout[oldId]; }
+    closeEditModal();
+    if (btn) { btn.disabled = false; btn.textContent = '저장'; }
+    buildBoard(); await savePortalData();
+  } else {
+    // ── 일반 카드 편집 ──
+    const noRaw = document.getElementById('editProjectNo').value.trim();
+    const newNo = noRaw.replace(/[^a-zA-Z0-9_-]/g, '');
+
+    // 프로젝트 번호가 변경된 경우 id·href·layout 키 업데이트
+    if (newNo && newNo !== oldId) {
+      if (state.cards.some(x => x.id === newNo)) {
+        alert('이미 사용 중인 프로젝트 번호입니다.'); return;
+      }
+      const oldLayout = state.layout[oldId];
+      c.id = newNo;
+      c.href = `dashboard/production_dashboard.html?project=${encodeURIComponent(newNo)}`;
+      if (oldLayout) { state.layout[newNo] = oldLayout; delete state.layout[oldId]; }
+    }
+
+    c.badge = badge; c.name = name; c.desc = desc; c.linkText = linkText;
+    if (imgSrc) c.imageSrc = imgSrc;
+    closeEditModal(); buildBoard(); await savePortalData();
+  }
+}
+
+// ── 수주현황 엑셀 업로드 처리 ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('orderExcelInput');
+  if (input) input.addEventListener('change', handleOrderExcelUpload);
+});
+
+async function handleOrderExcelUpload(e) {
+  const file = e.target.files[0];
+  e.target.value = ''; // 같은 파일 재업로드 허용
+  if (!file) return;
+
+  let workbook;
+  try {
+    const buf = await file.arrayBuffer();
+    workbook = XLSX.read(buf, { type: 'array' });
+  } catch(err) {
+    alert('엑셀 파일을 읽는 데 실패했습니다.\n' + err.message);
+    return;
+  }
+
+  // 첫 번째 시트 사용
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+  // 수주번호 / 프로젝트명 컬럼 탐색 (save_data.php와 동일 키 목록)
+  const orderKeys = ['수주번호', '수주 번호', 'order_no', 'orderNo', 'OrderNo'];
+  const nameKeys  = ['프로젝트명', '현장명', '공사명', '공사 명'];
+
+  let noKey = '', nameKey = '';
+  if (rows.length > 0) {
+    const firstRow = rows[0];
+    noKey   = orderKeys.find(k => k in firstRow) || '';
+    nameKey = nameKeys.find(k => k in firstRow)  || '';
+  }
+
+  if (!noKey) {
+    alert(`수주번호 컬럼을 찾지 못했습니다.\n파일에 포함된 컬럼 이름을 확인하고,\n다음 중 하나를 사용하세요:\n${orderKeys.join(', ')}`);
+    return;
+  }
+
+  // 유효한 항목만 추출
+  const projects = [];
+  const seen = new Set();
+  rows.forEach(r => {
+    const no = String(r[noKey] || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!no || seen.has(no)) return;
+    const name = nameKey ? String(r[nameKey] || '').trim() : no;
+    projects.push({ no, name: name || no });
+    seen.add(no);
+  });
+
+  if (projects.length === 0) {
+    alert('유효한 수주번호 데이터가 없습니다. 파일 내용을 확인하세요.');
+    return;
+  }
+
+  // 서버에 저장 (data_portal_orders.json)
+  const pwd = localStorage.getItem('dashboard_password') || '1234';
+  try {
+    const res = await fetch('./dashboard/save_data.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Dashboard-Password': pwd,
+        'X-Dashboard-Project': 'portal_orders',
+        'X-Dashboard-Mode': 'main'
+      },
+      body: JSON.stringify({ schema: 'portal-orders.v1', savedAt: new Date().toISOString(), projects }, null, 2)
+    });
+    const d = await res.json();
+    if (d.success) {
+      showToast(`✓ 수주번호 ${projects.length}건이 서버에 저장되었습니다.`);
+    } else {
+      showToast('서버 저장 실패: ' + (d.message || ''));
+    }
+  } catch(err) {
+    showToast('서버 저장 실패 (연결 오류)');
+  }
+}
+
+// 서버 수주번호 목록을 드롭다운에 로드
+// (data_portal_orders.json 우선, 없으면 list_projects API 사용)
+async function loadProjectSelectOptions() {
+  const sel = document.getElementById('editProjectSelect');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- 목록 불러오는 중... --</option>';
+
+  let projects = [];
+
+  // 1) 수주현황 업로드 파일(data_portal_orders.json) 먼저 시도
+  try {
+    const res = await fetch('./dashboard/data_portal_orders.json', { cache: 'no-cache' });
+    if (res.ok) {
+      const d = await res.json();
+      if (Array.isArray(d.projects) && d.projects.length > 0) {
+        projects = d.projects;
+      }
+    }
+  } catch(e) { /* 파일 없으면 무시 */ }
+
+  // 2) 없으면 list_projects API (기존 data_*.json 기반)
+  if (projects.length === 0) {
+    try {
+      const res = await fetch('./dashboard/save_data.php?action=list_projects', { cache: 'no-cache' });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.success && Array.isArray(d.projects)) projects = d.projects;
+      }
+    } catch(e) { /* 무시 */ }
+  }
+
+  if (projects.length > 0) {
+    sel.innerHTML = '<option value="">-- 수주번호 선택 시 자동입력 --</option>';
+    projects.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.no;
+      opt.dataset.name = p.name || p.no;
+      opt.textContent = p.name && p.name !== p.no ? `${p.no}  —  ${p.name}` : p.no;
+      sel.appendChild(opt);
+    });
+  } else {
+    sel.innerHTML = '<option value="">-- 수주현황 파일을 업로드하거나 직접 입력하세요 --</option>';
+  }
+}
+
+// 드롭다운 선택 → 번호·이름 자동입력
+// 기존 카드(읽기 전용)는 이름만, 신규(draft)는 번호+이름 모두 자동입력
+document.addEventListener('DOMContentLoaded', () => {
+  const sel = document.getElementById('editProjectSelect');
+  if (sel) {
+    sel.addEventListener('change', function() {
+      if (!this.value) return;
+      const noInput = document.getElementById('editProjectNo');
+      if (noInput) noInput.value = this.value;   // 신규·기존 모두 번호 채움
+      const name = this.options[this.selectedIndex].dataset.name || '';
+      if (name) document.getElementById('editTitle').value = name;
+    });
+  }
+});
+
+// data_[no].json 빈 파일 서버에 생성
+async function createProjectDataFile(no, projectName) {
+  const pwd = localStorage.getItem('dashboard_password') || '1234';
+  const template = {
+    schema: 'production-dashboard.v1', savedAt: new Date().toISOString(),
+    projectName: projectName || no, orderNo: '', logoSrc: '', totalQty: 100,
+    floorStart: 1, floorEnd: 10, notes: [], stageColors: {},
+    refDate: null, panelTitles: [], layout: {}, rows: [], tempHumidRows: []
+  };
+  try {
+    const res = await fetch('./dashboard/save_data.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Dashboard-Password': pwd, 'X-Dashboard-Project': no, 'X-Dashboard-Mode': 'main' },
+      body: JSON.stringify(template, null, 2)
+    });
+    const ct = res.headers.get('content-type');
+    if (ct && ct.includes('application/json')) {
+      const d = await res.json();
+      if (d.success) { showToast(`✓ data_${no}.json 파일이 생성되었습니다.`); return true; }
+      alert('파일 생성 실패: ' + (d.message || '알 수 없는 오류')); return false;
+    }
+    alert('서버 응답 오류 (PHP 모듈 확인 필요)'); return false;
+  } catch(e) { alert('서버 연결 실패: ' + e.message); return false; }
+}
+
+async function deleteCard(id) {
+  const card = state.cards.find(c => c.id === id);
+  const isDraft = card && card.type === 'draft';
+  const name = (card && card.name) ? card.name : id;
+  if (isDraft) {
+    if (!confirm('미설정 빈 카드를 삭제하시겠습니까?')) return;
+  } else {
+    if (!confirm(`"${name}" 카드를 삭제하시겠습니까?\n\ndata_${id}.json 파일도 함께 삭제됩니다.`)) return;
+    const pwd = localStorage.getItem('dashboard_password') || '1234';
+    try {
+      const res = await fetch(`./dashboard/save_data.php?action=delete&project=${encodeURIComponent(id)}`, {
+        headers: { 'X-Dashboard-Password': pwd }
+      });
+      const ct = res.headers.get('content-type');
+      if (ct && ct.includes('application/json')) {
+        const d = await res.json();
+        if (!d.success && !confirm(`파일 삭제 실패: ${d.message}\n\n카드만 삭제하시겠습니까?`)) return;
+      }
+    } catch(e) {
+      if (!confirm('서버 연결 실패로 파일을 삭제하지 못했습니다.\n카드만 삭제하시겠습니까?')) return;
+    }
+  }
+  state.cards = state.cards.filter(c => c.id !== id);
+  delete state.layout[id];
+  buildBoard();
+  if (!isDraft) await savePortalData();
+}
+
+// Server load/save
+async function loadPortalData() {
+  try {
+    const res = await fetch('./dashboard/data_portal_index.json?_='+Date.now(), {cache:'no-cache'}); if(!res.ok) return false;
+    const d = await res.json();
+    if(d.portalTitle) state.portalTitle=d.portalTitle; if(d.portalSubtitle) state.portalSubtitle=d.portalSubtitle;
+    if(d.logoSrc) { state.logoSrc=d.logoSrc; triggerLogoUploadVisuals(); }
+    if(d.logoLayout) state.logoLayout=d.logoLayout;
+    if(d.addBtnLayout) state.addBtnLayout=d.addBtnLayout;
+    if(d.cards) state.cards=d.cards;
+    if(d.layout) {
+      // 기존 data.json이 px기준 높이(h)일수도 있으니 호환성 검사
+      let isOldFormat = false;
+      Object.values(d.layout).forEach(l => { if (l.w > 1 || l.h > 1 || l.y > 2) isOldFormat = true; });
+      if (!isOldFormat) state.layout = d.layout;
+    }
+    return true;
+  } catch(e) { return false; }
+}
+
+async function savePortalData() {
+  state.portalTitle = document.getElementById('portalTitle').textContent.trim();
+  state.portalSubtitle = document.getElementById('portalSubtitle').textContent.trim();
+  const payload = { schema: 'portal.v2', savedAt: new Date().toISOString(), portalTitle: state.portalTitle, portalSubtitle: state.portalSubtitle, logoSrc: state.logoSrc, logoLayout: state.logoLayout, addBtnLayout: state.addBtnLayout, cards: state.cards, layout: state.layout };
+  const pwd = localStorage.getItem('dashboard_password')||'1234';
+  try {
+    const res = await fetch('./dashboard/save_data.php', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Dashboard-Password': pwd, 'X-Dashboard-Project': 'portal_index', 'X-Dashboard-Mode': 'main' }, body: JSON.stringify(payload,null,2) });
+    const d = await res.json();
+    if(d.success) showToast('✓ 포털이 저장되었습니다.'); else showToast('⚠ 저장 실패: '+d.message);
+  } catch(e) { showToast('⚠ 서버 연결 실패'); }
+}
+
+let rzTimer; window.addEventListener('resize', () => { clearTimeout(rzTimer); rzTimer = setTimeout(applyLayout, 100); });
+
+function triggerLogoUploadVisuals() {
+  const img = document.getElementById('portalLogoImg');
+  const ph = document.getElementById('portalLogoPlaceholder');
+  if(state.logoSrc && img){ img.src = state.logoSrc; img.style.display = 'block'; }
+  if(state.logoSrc && ph){ ph.style.display = 'none'; }
+}
+
+(async function init() {
+  await loadPortalData();
+  document.getElementById('portalTitle').textContent = state.portalTitle;
+  document.getElementById('portalSubtitle').textContent = state.portalSubtitle;
+  applyAdminMode();
+  if(!state.layout || !Object.keys(state.layout).length) state.layout = calcDefaultLayout();
+  if(!state.logoLayout || !Object.keys(state.logoLayout).length) state.logoLayout = calcDefaultLogoLayout();
+  if(!state.addBtnLayout || !Object.keys(state.addBtnLayout).length) state.addBtnLayout = calcDefaultAddBtnLayout();
+  triggerLogoUploadVisuals();
+  buildBoard();
+})();
+</script>
+</body>
+</html>

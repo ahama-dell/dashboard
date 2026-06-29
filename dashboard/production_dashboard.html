@@ -1,0 +1,2679 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>생산 모니터링 대시보드</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Bebas+Neue&display=swap');
+
+  :root {
+    /* Responsive base font-size — scales with viewport width
+       1366px (small laptop) → ~13px (clamped min)
+       1920px (FHD)          → ~16.3px
+       2560px (QHD)          → 18px (clamped max)
+       3840px (4K)           → 18px (clamped max) */
+    font-size: clamp(13px, 0.85vw, 18px);
+    --bg: #0b1120;
+    --bg2: #0d1a2e;
+    --panel: rgba(255,255,255,0.04);
+    --panel-border: rgba(255,255,255,0.08);
+    --panel-hover-border: rgba(26,223,139,0.25);
+    --accent: #1adf8b;
+    --accent-glow: rgba(26,223,139,0.55);
+    --warn: #f7c948;
+    --text-pri: #f0f4ff;
+    --text-sec: rgba(240,244,255,0.6);
+    --text-dim: rgba(240,244,255,0.32);
+    --c-asm: #5DCAA5;
+    --c-glz: #9FE1CB;
+    --c-pkg: #1D9E75;
+    --c-ship: #4a9eff;
+    --c-inst: #c084fc;
+    --hdr-bg: #ffffff;
+    --hdr-text: #1a1a1a;
+    --hdr-text-sec: #4b5563;
+    --hdr-border: rgba(0,0,0,0.08);
+    --hdr-accent: #0F6E56;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; background: var(--bg); font-family: 'Noto Sans KR', sans-serif; color: var(--text-pri); }
+
+  /* ── HEADER (WHITE) ───────────────────────────── */
+  #header {
+    position: fixed; top: 0; left: 0; right: 0; height: 54px;
+    background: var(--hdr-bg);
+    border-bottom: 0.5px solid var(--hdr-border);
+    padding: 0 16px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    z-index: 100;
+  }
+  .hdr-left, .hdr-right { display: flex; align-items: center; gap: 12px; }
+  .hdr-right { justify-content: flex-end; }
+
+  #projectTitle {
+    font-size: 1.0625rem; font-weight: 700; color: var(--hdr-text);
+    cursor: pointer; padding: 4px 8px; border-radius: 4px;
+    transition: background .15s; letter-spacing: -0.3px;
+    outline: none;
+  }
+  #projectTitle:hover { background: rgba(0,0,0,0.04); }
+  #projectTitle.editing { background: rgba(15,110,86,0.06); border-bottom: 2px solid var(--hdr-accent); }
+  .edit-ico { font-size: 0.6875rem; color: #9ca3af; cursor: pointer; transition: color .15s; }
+  .edit-ico:hover { color: var(--hdr-accent); }
+
+  /* Center area = project title — purely a label, no click affordance */
+  .hdr-center {
+    display: flex; align-items: center; justify-content: center;
+    gap: 6px; min-width: 200px;
+  }
+
+  /* Logo lives in hdr-left now. Clickable ONLY in admin mode. */
+  #logoCenter {
+    display: flex; align-items: center;
+    gap: 10px; padding: 4px 8px; border-radius: 6px;
+    min-height: 42px;
+    transition: background .15s;
+  }
+  #logoCenter.admin { cursor: pointer; }
+  #logoCenter.admin:hover { background: rgba(0,0,0,0.04); }
+  #logoCenter.admin:hover .logo-change { opacity: 1; }
+  #logoImg { max-height: 42px; max-width: 220px; object-fit: contain; display: block; }
+  #logoPlaceholder {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px; font-size: 0.6875rem; color: var(--hdr-text-sec);
+    border: 1px dashed rgba(0,0,0,0.18); border-radius: 6px;
+  }
+  .logo-change {
+    font-size: 0.625rem; color: var(--hdr-accent);
+    opacity: 0; transition: opacity .15s;
+  }
+
+  .ref-date-block {
+    display: flex; flex-direction: column; align-items: flex-end;
+    cursor: pointer; padding: 3px 8px; border-radius: 5px;
+    transition: background .15s; border: 0.5px solid transparent;
+  }
+  .ref-date-block:hover { background: #f0fdf4; border-color: rgba(15,110,86,0.2); }
+  .ref-date-lbl { font-size: 0.5625rem; color: var(--hdr-text-sec); text-transform: uppercase; letter-spacing: 1px; font-weight: 500; }
+  .ref-date-val { font-size: 0.8125rem; color: var(--hdr-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ref-date-val::after { content: ' ▾'; font-size: 0.5625rem; color: var(--hdr-accent); }
+
+  .total-block {
+    display: flex; flex-direction: row; align-items: center; gap: 12px;
+    padding: 5px 14px;
+    background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+    border: 0.5px solid rgba(15,110,86,0.22);
+    border-radius: 8px;
+    height: 38px;
+  }
+  .total-lbl { font-size: 0.6875rem; color: var(--hdr-accent); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; white-space: nowrap; }
+  .total-val { font-size: 1.625rem; font-weight: 700; color: var(--hdr-text); font-family: 'Bebas Neue', sans-serif; letter-spacing: 2px; line-height: 1; }
+
+  #liveClock { font-size: 0.6875rem; color: var(--hdr-text-sec); font-variant-numeric: tabular-nums; font-weight: 500; }
+
+  .hdr-btn {
+    background: #f9fafb; border: 0.5px solid rgba(0,0,0,0.1);
+    border-radius: 6px; padding: 6px 11px; cursor: pointer;
+    font-size: 0.6875rem; color: #4b5563; transition: all .15s;
+    white-space: nowrap; font-weight: 500; font-family: inherit;
+  }
+  .hdr-btn:hover { border-color: var(--hdr-accent); color: var(--hdr-accent); background: #f0fdf4; }
+  .hdr-btn.upload { border-color: var(--hdr-accent); color: var(--hdr-accent); background: #f0fdf4; }
+  .hdr-btn.upload:hover { background: #dcfce7; }
+
+  /* ── BOARD (FREE LAYOUT) ─────────────────────── */
+  #board {
+    position: absolute; left: 0; right: 0; top: 54px; bottom: 0;
+    overflow: hidden;
+  }
+
+  .panel {
+    position: absolute;
+    background: var(--panel);
+    border: 0.5px solid var(--panel-border);
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .panel:hover { border-color: var(--panel-hover-border); }
+  .panel.dragging {
+    opacity: 0.85;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.6), 0 0 0 2px var(--accent);
+    z-index: 999;
+    transition: none;
+  }
+  .panel.swap-target {
+    box-shadow: 0 0 0 2px var(--accent), 0 0 24px var(--accent-glow);
+    background: rgba(26,223,139,0.06);
+  }
+  .panel.resizing {
+    z-index: 999;
+    box-shadow: 0 0 0 1px var(--accent), 0 0 16px var(--accent-glow);
+    transition: none;
+  }
+
+  .panel-header {
+    flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px 6px;
+    border-bottom: 0.5px solid var(--panel-border);
+    cursor: move;
+    user-select: none;
+  }
+  .panel-title {
+    font-size: 0.6875rem; font-weight: 500; color: var(--text-sec);
+    text-transform: uppercase; letter-spacing: 1px;
+    display: flex; align-items: center; gap: 6px;
+    padding: 1px 3px; border-radius: 3px;
+  }
+  .panel-title::before {
+    content: ''; width: 3px; height: 11px;
+    background: var(--accent); border-radius: 2px;
+  }
+  .panel-title.editing {
+    background: rgba(26,223,139,0.08);
+    outline: 1px solid var(--accent);
+    color: var(--text-pri);
+    cursor: text;
+  }
+  .panel-actions { display: flex; gap: 4px; }
+  .panel-body {
+    flex: 1 1 auto; overflow: hidden;
+    padding: 8px 12px 10px;
+    display: flex; flex-direction: column;
+    min-height: 0;
+  }
+
+  /* ── RESIZE HANDLES (8 directions) ──────────── */
+  .rs-handle {
+    position: absolute;
+    z-index: 5;
+    background: transparent;
+    transition: background .12s, box-shadow .12s;
+  }
+  .rs-n  { top: -3px; left: 14px; right: 14px; height: 6px; cursor: n-resize; }
+  .rs-s  { bottom: -3px; left: 14px; right: 14px; height: 6px; cursor: s-resize; }
+  .rs-e  { right: -3px; top: 14px; bottom: 14px; width: 6px; cursor: e-resize; }
+  .rs-w  { left: -3px; top: 14px; bottom: 14px; width: 6px; cursor: w-resize; }
+  .rs-ne { top: -4px; right: -4px; width: 14px; height: 14px; cursor: ne-resize; }
+  .rs-nw { top: -4px; left: -4px; width: 14px; height: 14px; cursor: nw-resize; }
+  .rs-se { bottom: -4px; right: -4px; width: 14px; height: 14px; cursor: se-resize; }
+  .rs-sw { bottom: -4px; left: -4px; width: 14px; height: 14px; cursor: sw-resize; }
+
+  .rs-handle:hover, .rs-handle.active {
+    background: var(--accent-glow);
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+  body.is-resizing, body.is-dragging { user-select: none; }
+  body.is-resizing *, body.is-dragging * { user-select: none !important; }
+
+  /* ── PANEL CONTENT STYLES ────────────────────── */
+
+  /* Progress + Status combined */
+  .prog-grid { display: grid; grid-template-columns: 1fr; gap: 6px; flex: 1; min-height: 0; overflow: hidden; }
+  .prog-item { display: flex; flex-direction: column; gap: 3px; }
+  .prog-row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; }
+  .prog-name { font-size: 0.6875rem; color: var(--text-sec); }
+  .prog-num { display: flex; gap: 6px; align-items: baseline; }
+  .prog-cnt { font-size: 0.8125rem; font-weight: 600; color: var(--text-pri); font-variant-numeric: tabular-nums; }
+  .prog-pct { font-size: 0.625rem; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .prog-track { height: 6px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
+  .prog-fill { height: 100%; border-radius: 4px; transition: width .5s cubic-bezier(.4,0,.2,1); }
+
+  /* Status summary cards */
+  .ss-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex: 1; min-height: 0; }
+  .ss-card {
+    background: rgba(255,255,255,0.03);
+    border: 0.5px solid rgba(255,255,255,0.06);
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex; flex-direction: column; justify-content: center;
+    transition: background .15s, border-color .15s;
+  }
+  .ss-card:hover { background: rgba(255,255,255,0.05); }
+  .ss-card .ss-name { font-size: 0.625rem; color: var(--text-sec); display: flex; align-items: center; gap: 5px; margin-bottom: 2px; }
+  .ss-card .ss-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .ss-card .ss-val { font-size: 1.25rem; font-weight: 700; font-family: 'Bebas Neue', sans-serif; letter-spacing: 1px; color: var(--text-pri); line-height: 1; }
+  .ss-card .ss-pct { font-size: 0.625rem; color: var(--text-dim); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+  /* Today shipment */
+  .today-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; transition: background .15s; border-radius: 8px; }
+  .today-wrap:hover { background: rgba(26,223,139,0.04); }
+  .today-date { font-size: 0.875rem; font-weight: 500; color: var(--text-sec); }
+  .today-date::after { content: ' ▾'; font-size: 0.625rem; color: var(--accent); }
+  .today-unit { font-size: 0.625rem; color: var(--text-dim); }
+  .today-val { font-size: 4rem; font-weight: 700; font-family: 'Bebas Neue', sans-serif; color: var(--accent); line-height: 1; text-shadow: 0 0 24px rgba(26,223,139,0.35); }
+
+  /* Chart wrapper */
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; font-size: 0.625rem; color: var(--text-sec); flex: 0 0 auto; }
+  .leg-item { display: flex; align-items: center; gap: 4px; }
+  .leg-swatch { width: 9px; height: 9px; border-radius: 2px; }
+  .chart-wrap { flex: 1 1 auto; position: relative; min-height: 0; overflow: hidden; }
+  .chart-wrap.scroll-x { overflow-x: auto; overflow-y: hidden; }
+  .chart-inner { position: relative; height: 100%; }
+
+  /* Notes */
+  .notes-list { flex: 1; overflow-y: auto; }
+  .note-item { font-size: 0.6875rem; line-height: 1.5; color: var(--text-sec); padding: 5px 0; border-bottom: 0.5px solid rgba(255,255,255,0.05); }
+  .note-item::before { content: '▸ '; color: var(--warn); }
+
+  /* Floor table */
+  .floor-scroll { flex: 1; overflow: auto; }
+  .floor-tbl { border-collapse: collapse; font-size: 0.625rem; white-space: nowrap; }
+  .floor-tbl th { background: rgba(26,223,139,0.08); color: var(--accent); font-weight: 500; padding: 4px 10px; text-align: center; border: 0.5px solid rgba(255,255,255,0.06); position: sticky; top: 0; z-index: 2; min-width: 38px; }
+  .floor-tbl td { padding: 4px 10px; text-align: center; border: 0.5px solid rgba(255,255,255,0.05); color: var(--text-dim); min-width: 38px; font-variant-numeric: tabular-nums; }
+  .floor-tbl td.has-val { color: var(--text-pri); cursor: pointer; transition: background .12s; }
+  .floor-tbl td.has-val:hover { background: rgba(26,223,139,0.1); color: var(--accent); }
+  .floor-tbl td.row-lbl, .floor-tbl th.sticky-col { text-align: left; font-weight: 500; position: sticky; left: 0; z-index: 3; background: #0f1a2e; min-width: 78px; padding-left: 10px; }
+  .floor-tbl td.color-pick { cursor: pointer; transition: background .15s; padding-right: 14px; }
+  .floor-tbl td.color-pick:hover { background: rgba(255,255,255,0.04); }
+  .floor-tbl td.color-pick .color-ico {
+    margin-left: 6px; font-size: 0.5625rem; opacity: 0.5;
+    transition: opacity .15s, transform .15s;
+  }
+  .floor-tbl td.color-pick:hover .color-ico { opacity: 1; transform: scale(1.3); }
+  .floor-tbl tr.plan td { color: #ff6b6b; font-weight: 500; }
+  .floor-tbl tr.plan td.has-val:hover { background: rgba(255,107,107,0.1); color: #ff6b6b; }
+  .floor-tbl tr.plan td.row-lbl { background: #0f1a2e; }
+
+  /* Custom scrollbars (green) */
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 4px; }
+  *::-webkit-scrollbar-thumb { background: rgba(26,223,139,0.4); border-radius: 4px; }
+  *::-webkit-scrollbar-thumb:hover { background: rgba(26,223,139,0.6); }
+  * { scrollbar-width: thin; scrollbar-color: rgba(26,223,139,0.4) rgba(255,255,255,0.04); }
+
+  /* ── MODAL ────────────────────────────────── */
+  .modal-bg {
+    display: none; position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,0.78); backdrop-filter: blur(6px);
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-bg.open { display: flex; }
+  .modal-card {
+    background: #111c2e; border: 0.5px solid rgba(255,255,255,0.12);
+    border-radius: 14px; max-width: 90vw; max-height: 88vh;
+    display: flex; flex-direction: column; min-width: 480px;
+  }
+  .modal-hd {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 22px; border-bottom: 0.5px solid rgba(255,255,255,0.08);
+  }
+  .modal-hd h3 {
+    font-size: 0.875rem; font-weight: 500; color: var(--accent);
+    letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;
+  }
+  .modal-hd h3::before { content: '▎'; color: var(--accent); }
+  .modal-close {
+    background: none; border: 0.5px solid rgba(255,255,255,0.12);
+    color: var(--text-sec); width: 28px; height: 28px; border-radius: 6px;
+    cursor: pointer; font-size: 0.875rem; transition: all .15s;
+  }
+  .modal-close:hover { color: var(--accent); border-color: var(--accent); }
+  .modal-body { padding: 18px 22px; overflow-y: auto; flex: 1; min-height: 100px; }
+
+  .modal-table { width: 100%; border-collapse: collapse; font-size: 0.6875rem; }
+  .modal-table th { background: rgba(26,223,139,0.08); color: var(--accent); font-weight: 500; padding: 6px 10px; text-align: left; border-bottom: 0.5px solid rgba(255,255,255,0.08); position: sticky; top: 0; }
+  .modal-table td { padding: 5px 10px; color: var(--text-sec); border-bottom: 0.5px solid rgba(255,255,255,0.04); }
+  .modal-table tr:hover td { background: rgba(255,255,255,0.03); color: var(--text-pri); }
+  /* highlighted column = the stage the user clicked */
+  .modal-table th.hl {
+    color: var(--hl-c, var(--accent)) !important;
+    background: var(--hl-bg, rgba(26,223,139,0.18)) !important;
+    border-bottom: 2px solid var(--hl-c, var(--accent));
+  }
+  .modal-table th.hl::after { content: ' ◀'; font-size: 0.5625rem; opacity: 0.8; }
+  .modal-table td.hl {
+    color: var(--hl-c, var(--accent)) !important;
+    background: var(--hl-bg-l, rgba(26,223,139,0.06)) !important;
+    font-weight: 600;
+    border-left: 1px solid var(--hl-c, var(--accent));
+    border-right: 1px solid var(--hl-c, var(--accent));
+  }
+  .modal-table tr:hover td.hl { background: var(--hl-bg, rgba(26,223,139,0.12)) !important; }
+  .modal-table tr:last-child td.hl { border-bottom: 1px solid var(--hl-c, var(--accent)); }
+  .modal-empty { padding: 36px 0; text-align: center; color: var(--text-dim); font-size: 0.75rem; }
+
+  /* Settings */
+  .s-group { margin-bottom: 16px; }
+  .s-group label { display: block; font-size: 0.625rem; color: var(--text-sec); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; font-weight: 500; }
+  .s-group input[type=text], .s-group input[type=number], .s-group textarea {
+    width: 100%; background: rgba(255,255,255,0.05);
+    border: 0.5px solid rgba(255,255,255,0.13); border-radius: 7px;
+    padding: 8px 11px; color: var(--text-pri); font-size: 0.8125rem;
+    font-family: inherit; outline: none; transition: border-color .15s;
+  }
+  .s-group input:focus, .s-group textarea:focus { border-color: var(--accent); }
+  .s-row { display: flex; gap: 8px; align-items: center; }
+  .s-row > input { flex: 1; }
+  .s-row > span { color: var(--text-sec); font-size: 0.75rem; }
+  .s-actions { display: flex; gap: 8px; margin-top: 18px; }
+  .btn-primary { flex: 1; padding: 9px; border-radius: 7px; cursor: pointer; font-size: 0.8125rem; font-weight: 500; border: none; background: var(--accent); color: #0b1120; transition: opacity .15s; font-family: inherit; }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-ghost { flex: 1; padding: 9px; border-radius: 7px; cursor: pointer; font-size: 0.8125rem; font-weight: 500; background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.13); color: var(--text-sec); font-family: inherit; }
+  .btn-ghost:hover { color: var(--text-pri); }
+
+  /* date picker hidden input */
+  #refDateInput { position: absolute; opacity: 0; pointer-events: none; }
+
+  /* hide native file pickers — accessed via clicking the label / logo area */
+  #xlsxInput, #tempHumidInput, #logoInput { position: absolute !important; width: 1px !important; height: 1px !important; opacity: 0 !important; pointer-events: none !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; }
+
+  /* ── SNAP GUIDELINES (shown only during drag/resize) ──── */
+  .snap-guide {
+    position: fixed; pointer-events: none; z-index: 998;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent-glow), 0 0 12px rgba(26,223,139,0.25);
+    opacity: 0; transition: opacity .08s;
+  }
+  .snap-guide.show { opacity: 0.85; }
+
+  /* ── UPLOAD DROPDOWN ────────────────────────── */
+  .upload-dropdown {
+    position: relative;
+    display: inline-block;
+  }
+  .upload-dropdown-content {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 0;
+    background-color: #111c2e;
+    min-width: 170px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.5);
+    border: 0.5px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    z-index: 200;
+  }
+  .upload-dropdown-content label {
+    color: var(--text-pri);
+    padding: 8px 14px;
+    text-decoration: none;
+    display: block;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background-color .15s, color .15s;
+    border-bottom: 0.5px solid rgba(255,255,255,0.05);
+  }
+  .upload-dropdown-content label:last-child {
+    border-bottom: none;
+  }
+  .upload-dropdown-content label:hover {
+    background-color: rgba(26,223,139,0.08);
+    color: var(--accent);
+  }
+  .upload-dropdown:hover .upload-dropdown-content {
+    display: block;
+  }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: #1a1a2e; border: 0.5px solid rgba(26,223,139,0.3);
+    border-radius: 8px; padding: 9px 18px;
+    font-size: 0.75rem; color: var(--text-pri);
+    opacity: 0; transition: opacity .25s, transform .25s;
+    pointer-events: none; z-index: 9999; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ───────────────────────────────── -->
+<header id="header">
+  <div class="hdr-left" id="logoCenter" title="">
+    <img id="logoImg" alt="">
+    <div id="logoPlaceholder"><span>🖼️</span><span>로고 이미지 선택</span></div>
+    <span class="logo-change">변경 ↻</span>
+    <input type="file" id="logoInput" accept="image/*">
+  </div>
+
+  <div class="hdr-center">
+    <span id="projectTitle" contenteditable="false">SK 영등포 양평동 프로젝트</span>
+    <span class="edit-ico" onclick="editTitle()">✎</span>
+  </div>
+
+  <div class="hdr-right">
+    <div class="ref-date-block" id="refDateBlock" title="기준일 변경">
+      <div class="ref-date-lbl">기준일</div>
+      <div class="ref-date-val" id="refDateDisplay">—</div>
+    </div>
+    <div class="total-block">
+      <div class="total-lbl">총수량</div>
+      <div class="total-val" id="totalDisplay">2025</div>
+    </div>
+    <span id="liveClock"></span>
+    <div class="upload-dropdown">
+      <button class="hdr-btn upload" type="button">📊 데이터 업로드 ▾</button>
+      <div class="upload-dropdown-content">
+        <label for="xlsxInput">📈 생산실적 데이터</label>
+        <label for="tempHumidInput">🌡️ 공장 온습도 데이터</label>
+      </div>
+    </div>
+    <input type="file" id="xlsxInput" accept=".xlsx,.xls">
+    <input type="file" id="tempHumidInput" accept=".xlsx,.xls">
+    <button class="hdr-btn" id="serverSaveBtn" onclick="exportServerData()" title="현재 상태를 data.json으로 다운로드 (관리자용)" style="display:none">💾 서버 저장</button>
+    <button class="hdr-btn" id="resetLayoutBtn" onclick="resetLayout()" title="공용 배치(data.json)로 복귀 — 없으면 초기 배치" style="display:none">↻ 배치</button>
+    <button class="hdr-btn" onclick="openSettings()">⚙ 설정</button>
+  </div>
+</header>
+
+<!-- ── BOARD ────────────────────────────────── -->
+<div id="board"></div>
+
+<!-- ── MODAL ────────────────────────────────── -->
+<div id="modal" class="modal-bg" onclick="if(event.target===this) closeModal()">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <h3 id="modalTitle">제목</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<!-- ── SETTINGS ─────────────────────────────── -->
+<div id="settingsModal" class="modal-bg" onclick="if(event.target===this) closeSettings()">
+  <div class="modal-card" style="min-width:520px;">
+    <div class="modal-hd">
+      <h3>대시보드 설정</h3>
+      <button class="modal-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="s-group">
+        <label>프로젝트명</label>
+        <input type="text" id="sProjectName">
+      </div>
+      <div class="s-group">
+        <label>수주번호</label>
+        <div class="s-row">
+          <input type="text" id="sOrderNo" placeholder="예: 20220725-1 (미입력 시 전체 데이터 대상)">
+          <button type="button" class="btn-ghost" onclick="openOrderNoSelect()" style="flex:0 0 auto; width:auto; padding:8px 12px; margin-left:8px;">목록 선택 ▾</button>
+        </div>
+      </div>
+      <div class="s-group">
+        <label>총수량 (계획 수량)</label>
+        <input type="number" id="sTotalQty" min="1">
+      </div>
+      <div class="s-group">
+        <label>층 범위 (프로젝트 규모)</label>
+        <div class="s-row">
+          <input type="number" id="sFloorStart" min="1" max="200" placeholder="시작층">
+          <span>층 ~</span>
+          <input type="number" id="sFloorEnd" min="1" max="200" placeholder="끝층">
+          <span>층</span>
+        </div>
+      </div>
+      <div class="s-group">
+        <label>특기사항 (줄바꿈으로 구분)</label>
+        <textarea id="sNotes" rows="4"></textarea>
+      </div>
+      <div class="s-group" id="sPasswordGroup" style="display:none;">
+        <label>서버 저장 비밀번호 (외부 접속 보안용)</label>
+        <input type="password" id="sServerPassword" placeholder="기본 비밀번호: 1234">
+      </div>
+      <div class="s-actions">
+        <button class="btn-ghost" onclick="closeSettings()">취소</button>
+        <button class="btn-primary" onclick="applySettings()">적용</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ORDER NO SELECT MODAL ────────────────── -->
+<div id="orderNoSelectModal" class="modal-bg" onclick="if(event.target===this) closeOrderNoSelect()">
+  <div class="modal-card" style="min-width:360px; max-width:440px; max-height:80vh;">
+    <div class="modal-hd">
+      <h3>수주번호 선택</h3>
+      <button class="modal-close" onclick="closeOrderNoSelect()">✕</button>
+    </div>
+    <div class="modal-body" id="orderNoSelectBody" style="overflow-y:auto; padding:12px 20px;"></div>
+  </div>
+</div>
+
+<!-- hidden date input -->
+<input type="date" id="refDateInput">
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+/* ════════════════════════════════════════════
+   STATE
+   ════════════════════════════════════════════ */
+const state = {
+  projectName: 'SK 영등포 양평동 프로젝트',
+  orderNo: '',
+  logoSrc: '',
+  totalQty: 2025,
+  floorStart: 3,
+  floorEnd: 17,
+  notes: ['예제) - 원자재 37층까지 발주 완료 (96%)', '28~37층 발주분 입고중 (0%)'],
+  refDate: new Date(),
+  rows: [],
+  tempHumidRows: [],
+  curingFilter: {
+    tempRooms: [true, true, true, true, true, true],
+    humidRooms: [true, true, true, true, true, true],
+    showTarget: true
+  },
+  layout: {},
+  stageColors: {
+    '조립':    '#5DCAA5',
+    '글레이징': '#9FE1CB',
+    '포장':    '#1D9E75',
+    '출하':    '#4a9eff',
+    '설치':    '#c084fc'
+  }
+};
+state.refDate.setHours(0,0,0,0);
+
+const PANEL_DEFS = [
+  { id: 'p1', type: 'progress',      title: '공정율 · 생산 설치 현황' },
+  { id: 'p2', type: 'dailyChart',    title: '7일간 일자별 생산실적 (UNIT)' },
+  { id: 'p3', type: 'todayShip',     title: '일일 출하' },
+  { id: 'p4', type: 'statusSummary', title: '생산 상태별 누적' },
+  { id: 'p5', type: 'weeklyChart',   title: '4주간 생산실적 (UNIT)' },
+  { id: 'p6', type: 'notes',         title: '특기사항' },
+  { id: 'p7', type: 'floorTable',    title: '층별 생산현황' },
+  { id: 'p8', type: 'processChart',  title: '생산공정 관리표' },
+  { id: 'p9', type: 'curingTempHumid', title: '양생실 온습도 모니터링' },
+];
+
+let charts = {};
+
+/* ════════════════════════════════════════════
+   UTILITIES
+   ════════════════════════════════════════════ */
+const ORDER_NO_KEYS = ['수주번호', '수주 번호', 'order_no', 'orderNo', 'OrderNo'];
+function getFilteredRows() {
+  if (!state.orderNo) return state.rows;
+  return state.rows.filter(r => {
+    for (const key of ORDER_NO_KEYS) {
+      if (r[key] !== undefined && r[key] !== null) {
+        return String(r[key]).trim() === state.orderNo.trim();
+      }
+    }
+    return false;
+  });
+}
+
+function parseDate(v) {
+  if (!v) return null;
+  if (v instanceof Date) return isNaN(v) ? null : v;
+  if (typeof v === 'number') {
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    return isNaN(d) ? null : d;
+  }
+  const d = new Date(String(v).trim());
+  return isNaN(d) ? null : d;
+}
+const toDS = d => d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` : null;
+const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate()+n); r.setHours(0,0,0,0); return r; };
+function startOfWeek(d) { const r = new Date(d); r.setHours(0,0,0,0); r.setDate(r.getDate() - ((r.getDay()+6)%7)); return r; }
+function fmtDate(d) {
+  if (!d) return '—';
+  const days = ['일','월','화','수','목','금','토'];
+  return `${String(d.getFullYear()).slice(2)}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}(${days[d.getDay()]})`;
+}
+function normFloor(v) {
+  if (v === null || v === undefined) return null;
+  const m = String(v).match(/(\d+)/);
+  return m ? parseInt(m[1]) : null;
+}
+const GLZ_KEYS = ['글래이징완료시간','글레이징완료시간','글레이징_완료시간'];
+function getGlzVal(r) { for (const k of GLZ_KEYS) if (r[k] !== undefined && r[k] !== null) return r[k]; return null; }
+function shipDateOf(r) { return parseDate(r['출하일'] || r['출하완료시간']); }
+function isCompletedBy(stage, st, dRow, refDate) {
+  // returns true if row reached this stage by refDate (inclusive)
+  const orderMap = { '조립완료':1, '글래이징완료':2, '글레이징완료':2, '포장완료':3, '출하완료':4, '설치완료':5 };
+  const stageOrder = { '조립':1, '글레이징':2, '포장':3, '출하':4, '설치':5 }[stage];
+  const rowOrder = orderMap[(st||'').trim()] || 0;
+  if (rowOrder < stageOrder) return false;
+  // also check the date when this stage completed (if available)
+  const colByStage = {
+    '조립': parseDate(dRow['조립완료시간']),
+    '글레이징': parseDate(getGlzVal(dRow)),
+    '포장': parseDate(dRow['포장완료시간']),
+    '출하': shipDateOf(dRow),
+    '설치': parseDate(dRow['설치완료시간']),
+  };
+  const colD = colByStage[stage];
+  if (colD) return colD <= refDate;
+  // if the date for this stage is missing but row's overall status is past this stage, count it
+  return true;
+}
+
+function computeStageCounts(rows, refDate) {
+  const out = { 조립:0, 글레이징:0, 포장:0, 출하:0, 설치:0 };
+  rows.forEach(r => {
+    const st = (r['상태']||'').trim();
+    Object.keys(out).forEach(stage => {
+      if (isCompletedBy(stage, st, r, refDate)) out[stage]++;
+    });
+  });
+  return out;
+}
+
+/* ════════════════════════════════════════════
+   STAGE COLOR CUSTOMIZATION
+   ════════════════════════════════════════════ */
+function applyStageColors() {
+  const r = document.documentElement.style;
+  r.setProperty('--c-asm',  state.stageColors['조립']);
+  r.setProperty('--c-glz',  state.stageColors['글레이징']);
+  r.setProperty('--c-pkg',  state.stageColors['포장']);
+  r.setProperty('--c-ship', state.stageColors['출하']);
+  r.setProperty('--c-inst', state.stageColors['설치']);
+}
+
+function openColorPicker(stage) {
+  let inp = document.getElementById('_colorPickerInput');
+  if (!inp) {
+    inp = document.createElement('input');
+    inp.type = 'color';
+    inp.id = '_colorPickerInput';
+    inp.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;';
+    document.body.appendChild(inp);
+  }
+  inp.value = state.stageColors[stage] || '#5DCAA5';
+  inp.onchange = function(e) {
+    state.stageColors[stage] = e.target.value;
+    applyStageColors();
+    renderAll();
+  };
+  inp.click();
+  if (typeof inp.showPicker === 'function') {
+    try { inp.showPicker(); } catch(e) {}
+  }
+}
+window.openColorPicker = openColorPicker;
+
+/* ════════════════════════════════════════════
+   SERVER DATA SYNC (Synology NAS — same-origin fetch)
+   ════════════════════════════════════════════
+   - Load: every visitor's browser fetches ./data.json at startup
+           → applies project name, total qty, floors, notes, colors,
+             panel titles, layout, rows. Falls back to demo if missing.
+   - Save: admin clicks 💾 서버 저장 → downloads data.json with
+           current state. Admin uploads that file to NAS (manual).
+           Button only appears when URL has ?admin=1.
+   ════════════════════════════════════════════ */
+
+function ensurePercentageLayout() {
+  let isPixel = false;
+  let maxX = 0;
+  let maxY = 0;
+  
+  Object.keys(state.layout).forEach(id => {
+    const L = state.layout[id];
+    if (L && L.w > 2) {
+      isPixel = true;
+      maxX = Math.max(maxX, L.x + L.w);
+      maxY = Math.max(maxY, L.y + L.h);
+    }
+  });
+
+  if (isPixel) {
+    const originalW = maxX > 0 ? (maxX + 6) : 1920;
+    const originalH = maxY > 0 ? (maxY + 6) : 1026;
+    
+    console.log('[layout] Converting pixel layout to percentages. Estimated original size:', originalW, 'x', originalH);
+
+    Object.keys(state.layout).forEach(id => {
+      const L = state.layout[id];
+      if (L) {
+        L.x = L.x / originalW;
+        L.y = L.y / originalH;
+        L.w = L.w / originalW;
+        L.h = L.h / originalH;
+      }
+    });
+  }
+}
+
+async function loadServerData() {
+  try {
+    const res = await fetch('./data.json', { cache: 'no-cache' });
+    if (!res.ok) return false;
+    const d = await res.json();
+
+    if (d.projectName) state.projectName = d.projectName;
+    if (d.orderNo !== undefined) state.orderNo = d.orderNo;
+    if (d.logoSrc)     state.logoSrc = d.logoSrc;
+    if (d.totalQty != null)   state.totalQty = d.totalQty;
+    if (d.floorStart != null) state.floorStart = d.floorStart;
+    if (d.floorEnd != null)   state.floorEnd = d.floorEnd;
+    if (Array.isArray(d.notes))  state.notes = d.notes;
+    if (d.stageColors)           Object.assign(state.stageColors, d.stageColors);
+    if (Array.isArray(d.panelTitles)) {
+      d.panelTitles.forEach(t => {
+        const def = PANEL_DEFS.find(p => p.id === t.id);
+        if (def && t.title) def.title = t.title;
+      });
+    }
+    if (d.layout && Object.keys(d.layout).length) {
+      state.layout = d.layout;
+      if (!state.layout.p9) {
+        const defL = calcDefaultLayout();
+        state.layout.p9 = defL.p9;
+      }
+      ensurePercentageLayout();
+    }
+    if (Array.isArray(d.rows)) state.rows = d.rows;
+    if (Array.isArray(d.tempHumidRows)) state.tempHumidRows = d.tempHumidRows;
+    if (d.refDate) {
+      const rd = new Date(d.refDate);
+      if (!isNaN(rd)) state.refDate = rd;
+    }
+    console.log('[server] loaded data.json (saved:', d.savedAt || '?', ')');
+    return true;
+  } catch (e) {
+    console.log('[server] data.json not found or invalid — using demo. Reason:', e.message);
+    return false;
+  }
+}
+
+async function exportServerData() {
+  const payload = {
+    schema: 'production-dashboard.v1',
+    savedAt: new Date().toISOString(),
+    projectName: state.projectName,
+    orderNo: state.orderNo,
+    logoSrc: state.logoSrc,
+    totalQty: state.totalQty,
+    floorStart: state.floorStart,
+    floorEnd: state.floorEnd,
+    notes: state.notes,
+    stageColors: state.stageColors,
+    refDate: toDS(state.refDate),
+    panelTitles: PANEL_DEFS.map(p => ({ id: p.id, title: p.title })),
+    layout: state.layout,
+    rows: state.rows,
+    tempHumidRows: state.tempHumidRows,
+  };
+  
+  const json = JSON.stringify(payload, null, 2);
+  const pwd = localStorage.getItem('dashboard_password') || '1234';
+  const btn = document.getElementById('serverSaveBtn');
+  const origText = btn ? btn.innerHTML : '💾 서버 저장';
+
+  if (btn) {
+    btn.innerHTML = '⚡ 저장 중...';
+    btn.disabled = true;
+  }
+
+  try {
+    const res = await fetch('./save_data.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Dashboard-Password': pwd
+      },
+      body: json
+    });
+    
+    // Check if the response is JSON
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.indexOf("application/json") !== -1) {
+      const resData = await res.json();
+      if (res.ok && resData.success) {
+        if (btn) {
+          btn.innerHTML = '✓ 저장 완료';
+          btn.style.background = '#dcfce7';
+          btn.style.color = '#15803d';
+          btn.style.borderColor = '#bbf7d0';
+          setTimeout(() => {
+            btn.innerHTML = origText;
+            btn.style.background = '';
+            btn.style.color = '';
+            btn.style.borderColor = '';
+            btn.disabled = false;
+          }, 2000);
+        }
+        return;
+      } else {
+        throw new Error(resData.message || '서버 응답 오류');
+      }
+    } else {
+      const text = await res.text();
+      throw new Error('올바르지 않은 서버 응답 (PHP 모듈이 활성화되었는지 확인하세요)');
+    }
+  } catch (err) {
+    console.error('API 저장 실패:', err);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origText;
+    }
+    
+    alert('서버 자동 저장에 실패했습니다. 사유: ' + err.message + '\n\n설정 유지를 위해 수동으로 data.json 파일 다운로드를 실행합니다. 다운로드받은 파일을 NAS 서버의 대시보드 폴더에 덮어씌워 주세요.');
+    
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'data.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+}
+window.exportServerData = exportServerData;
+
+function calcDefaultLayout() {
+  const W = window.innerWidth || 1920;
+  const H = window.innerHeight || 1080;
+  const headerH = 54;             // matches #header height
+  const topOffset = 4;            // small breathing room from board top (= just below header)
+  const padding = 6;
+  const gap = 6;
+  const bodyW = W - padding * 2;
+  const bodyH = H - headerH - topOffset - padding;  // actual usable height inside board
+
+  const col1W = Math.max(220, Math.floor(bodyW * 0.18));
+  const col3W = Math.max(180, Math.floor(bodyW * 0.16));
+  const col2W = bodyW - col1W - col3W - gap * 2;
+
+  // 4개 행 분할 (Progress/Daily/Today: 18%, Cumulative/Weekly/Notes: 18%, FloorTable/ProcessChart: 24%, TempHumid: 40%)
+  const row1H = Math.floor(bodyH * 0.18);
+  const row2H = Math.floor(bodyH * 0.18);
+  const row3H = Math.floor(bodyH * 0.24);
+  const row4H = bodyH - row1H - row2H - row3H - gap * 3;
+
+  const x1 = padding, x2 = x1 + col1W + gap, x3 = x2 + col2W + gap;
+  const y1 = topOffset;
+  const y2 = y1 + row1H + gap;
+  const y3 = y2 + row2H + gap;
+  const y4 = y3 + row3H + gap;
+
+  const boardW = W;
+  const boardH = H - headerH;
+
+  return {
+    p1: { x: x1 / boardW, y: y1 / boardH, w: col1W / boardW, h: row1H / boardH },
+    p2: { x: x2 / boardW, y: y1 / boardH, w: col2W / boardW, h: row1H / boardH },
+    p3: { x: x3 / boardW, y: y1 / boardH, w: col3W / boardW, h: row1H / boardH },
+    p4: { x: x1 / boardW, y: y2 / boardH, w: col1W / boardW, h: row2H / boardH },
+    p5: { x: x2 / boardW, y: y2 / boardH, w: col2W / boardW, h: row2H / boardH },
+    p6: { x: x3 / boardW, y: y2 / boardH, w: col3W / boardW, h: row2H / boardH },
+    p7: { x: x1 / boardW, y: y3 / boardH, w: (col1W + col2W + gap) / boardW, h: row3H / boardH },
+    p8: { x: x3 / boardW, y: y3 / boardH, w: col3W / boardW, h: row3H / boardH },
+    p9: { x: x1 / boardW, y: y4 / boardH, w: bodyW / boardW, h: row4H / boardH }
+  };
+}
+
+function applyLayout() {
+  const boardW = window.innerWidth;
+  const boardH = window.innerHeight - 54;
+
+  PANEL_DEFS.forEach(d => {
+    const p = document.getElementById(d.id);
+    if (!p) return;
+    const L = state.layout[d.id];
+    if (!L) return;
+
+    // Clamp to make sure everything stays inside the viewport
+    let x = Math.max(0, Math.min(boardW - 140, L.x * boardW));
+    let y = Math.max(0, Math.min(boardH - 90, L.y * boardH));
+    let w = Math.max(140, Math.min(boardW - x, L.w * boardW));
+    let h = Math.max(90, Math.min(boardH - y, L.h * boardH));
+
+    p.style.left = x + 'px';
+    p.style.top = y + 'px';
+    p.style.width = w + 'px';
+    p.style.height = h + 'px';
+  });
+}
+
+async function resetLayout() {
+  let newLayout = null;
+  let source = '기본';
+  try {
+    const res = await fetch('./data.json', { cache: 'no-cache' });
+    if (res.ok) {
+      const d = await res.json();
+      if (d.layout && Object.keys(d.layout).length) {
+        newLayout = d.layout;
+        source = '공용 배치 (data.json)';
+      }
+    }
+  } catch (e) { /* ignore — no server file */ }
+
+  state.layout = newLayout || calcDefaultLayout();
+  ensurePercentageLayout();
+  applyLayout();
+  // Charts need to re-measure for new panel sizes
+  Object.values(charts).forEach(c => { try { c.resize(); } catch(e) {} });
+  setTimeout(() => renderProcessChart(), 60);
+
+  // Brief flash on the button to indicate which source was used
+  const btn = document.getElementById('resetLayoutBtn');
+  if (btn) {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✓ ' + source;
+    setTimeout(() => { btn.innerHTML = orig; }, 1500);
+  }
+}
+window.resetLayout = resetLayout;
+
+/* ════════════════════════════════════════════
+   BUILD BOARD
+   ════════════════════════════════════════════ */
+function buildBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  PANEL_DEFS.forEach(d => {
+    const div = document.createElement('div');
+    div.className = 'panel';
+    div.id = d.id;
+    div.innerHTML = `
+      <div class="panel-header" data-panel="${d.id}">
+        <div class="panel-title" id="${d.id}-title">${d.title}</div>
+        <div class="panel-actions" id="${d.id}-actions"></div>
+      </div>
+      <div class="panel-body" id="${d.id}-body"></div>
+      ${['n','s','e','w','ne','nw','se','sw'].map(dir => `<div class="rs-handle rs-${dir}" data-dir="${dir}" data-panel="${d.id}"></div>`).join('')}
+    `;
+    board.appendChild(div);
+  });
+  attachInteractions();
+}
+
+/* ════════════════════════════════════════════
+   RENDER ALL PANEL CONTENTS
+   ════════════════════════════════════════════ */
+function renderAll() {
+  const titleText = state.projectName + (state.orderNo ? ' - ' + state.orderNo : '');
+  document.getElementById('projectTitle').textContent = titleText;
+  document.getElementById('totalDisplay').textContent = state.totalQty.toLocaleString();
+  document.getElementById('refDateDisplay').textContent = fmtDate(state.refDate);
+  renderLogo();
+  renderProgress();
+  renderStatusSummary();
+  renderTodayShip();
+  renderNotes();
+  renderDailyChart();
+  renderWeeklyChart();
+  renderFloorTable();
+  renderProcessChart();
+  renderCuringTempHumid();
+}
+
+function isAdminMode() {
+  const url = window.location.href.toLowerCase();
+  return url.indexOf('admin=1') !== -1 || url.indexOf('admin=true') !== -1;
+}
+
+function renderLogo() {
+  const img = document.getElementById('logoImg');
+  const ph = document.getElementById('logoPlaceholder');
+  const admin = isAdminMode();
+  if (state.logoSrc) {
+    img.src = state.logoSrc; img.style.display = 'block'; ph.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    // Placeholder only meaningful for admin who can click to set it
+    ph.style.display = admin ? 'flex' : 'none';
+  }
+}
+
+/* ── Panel 1: Progress + Status combined ── */
+function renderProgress() {
+  const body = document.getElementById('p1-body');
+  if (!body) return;
+  const cnts = computeStageCounts(getFilteredRows(), state.refDate);
+  const items = [
+    { name: '조립',    val: cnts.조립,    color: 'var(--c-asm)' },
+    { name: '글레이징', val: cnts.글레이징, color: 'var(--c-glz)' },
+    { name: '포장',    val: cnts.포장,    color: 'var(--c-pkg)' },
+    { name: '출하',    val: cnts.출하,    color: 'var(--c-ship)' },
+    { name: '설치',    val: cnts.설치,    color: 'var(--c-inst)' },
+  ];
+  body.innerHTML = `<div class="prog-grid">${items.map(it => {
+    const p = state.totalQty > 0 ? Math.round(it.val/state.totalQty*100) : 0;
+    return `<div class="prog-item">
+      <div class="prog-row1">
+        <span class="prog-name">${it.name}</span>
+        <span class="prog-num"><span class="prog-cnt">${it.val}</span><span class="prog-pct">${p}%</span></span>
+      </div>
+      <div class="prog-track"><div class="prog-fill" style="width:${p}%;background:${it.color}"></div></div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* ── Panel 4: Status summary big cards ── */
+function renderStatusSummary() {
+  const body = document.getElementById('p4-body');
+  if (!body) return;
+  const cnts = computeStageCounts(getFilteredRows(), state.refDate);
+  const items = [
+    { name: '조립',    val: cnts.조립,    color: 'var(--c-asm)' },
+    { name: '글레이징', val: cnts.글레이징, color: 'var(--c-glz)' },
+    { name: '포장',    val: cnts.포장,    color: 'var(--c-pkg)' },
+    { name: '출하',    val: cnts.출하,    color: 'var(--c-ship)' },
+    { name: '설치',    val: cnts.설치,    color: 'var(--c-inst)' },
+  ];
+  body.innerHTML = `<div class="ss-grid">${items.map(it => {
+    const p = state.totalQty > 0 ? Math.round(it.val/state.totalQty*100) : 0;
+    return `<div class="ss-card">
+      <div class="ss-name"><span class="ss-dot" style="background:${it.color}"></span>${it.name}</div>
+      <div class="ss-val">${it.val}</div>
+      <div class="ss-pct">${p}% · ${state.totalQty.toLocaleString()} 중</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* ── Panel 3: Today shipment with date picker ── */
+function renderTodayShip() {
+  const body = document.getElementById('p3-body');
+  if (!body) return;
+  const refStr = toDS(state.refDate);
+  const cnt = getFilteredRows().filter(r => { const d = shipDateOf(r); return d && toDS(d) === refStr; }).length;
+  body.innerHTML = `<div class="today-wrap" id="todayWrap">
+    <div class="today-date">${fmtDate(state.refDate)}</div>
+    <div class="today-unit">UNIT</div>
+    <div class="today-val">${cnt}</div>
+  </div>`;
+  document.getElementById('todayWrap').addEventListener('click', openRefDatePicker);
+}
+
+/* ── Panel 6: Notes ── */
+function renderNotes() {
+  const body = document.getElementById('p6-body');
+  if (!body) return;
+  body.innerHTML = `<div class="notes-list">${
+    state.notes.map(n => `<div class="note-item">${escapeHTML(n)}</div>`).join('')
+  }</div>`;
+}
+
+function escapeHTML(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ── Panel 2: 7-day daily chart ── */
+function renderDailyChart() {
+  const body = document.getElementById('p2-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="chart-legend">
+      <div class="leg-item"><div class="leg-swatch" style="background:var(--c-asm)"></div>조립</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:var(--c-glz)"></div>글레이징</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:var(--c-pkg)"></div>포장</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:var(--c-ship)"></div>출하</div>
+    </div>
+    <div class="chart-wrap"><canvas id="dailyCanvas"></canvas></div>`;
+
+  const ref = state.refDate;
+  const days = Array.from({length:7}, (_,i)=>addDays(ref, -6+i));
+  const dsMap = { 조립:days.map(()=>0), 글레이징:days.map(()=>0), 포장:days.map(()=>0), 출하:days.map(()=>0) };
+  getFilteredRows().forEach(r => {
+    const map = {
+      '조립': parseDate(r['조립완료시간']),
+      '글레이징': parseDate(getGlzVal(r)),
+      '포장': parseDate(r['포장완료시간']),
+      '출하': shipDateOf(r),
+    };
+    Object.entries(map).forEach(([k,d]) => {
+      if (!d) return;
+      const i = days.findIndex(dd => toDS(dd) === toDS(d));
+      if (i>=0) dsMap[k][i]++;
+    });
+  });
+  const labels = days.map(d => `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`);
+
+  if (charts.daily) charts.daily.destroy();
+  charts.daily = new Chart(document.getElementById('dailyCanvas'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label:'조립',    data: dsMap.조립,    backgroundColor: state.stageColors['조립'],    stage:'조립' },
+      { label:'글레이징', data: dsMap.글레이징, backgroundColor: state.stageColors['글레이징'], stage:'글레이징' },
+      { label:'포장',    data: dsMap.포장,    backgroundColor: state.stageColors['포장'],    stage:'포장' },
+      { label:'출하',    data: dsMap.출하,    backgroundColor: state.stageColors['출하'],    stage:'출하' },
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      onClick: (e, items) => {
+        if (!items.length) return;
+        const it = items[0];
+        const stage = charts.daily.data.datasets[it.datasetIndex].stage;
+        const dayD = days[it.index];
+        showDayStageDrilldown(stage, dayD);
+      },
+      onHover: (e, items) => { e.native.target.style.cursor = items.length ? 'pointer' : 'default'; },
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid:{display:false}, ticks:{color:'rgba(240,244,255,0.5)',font:{size:10}} },
+        y: { grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'rgba(240,244,255,0.45)',font:{size:10}}, beginAtZero:true }
+      }
+    }
+  });
+}
+
+/* ── Panel 5: 4-week chart ── */
+function renderWeeklyChart() {
+  const body = document.getElementById('p5-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="chart-legend">
+      <div class="leg-item"><div class="leg-swatch" style="background:var(--c-asm)"></div>조립</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:var(--c-glz)"></div>글레이징</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:var(--c-pkg)"></div>포장</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:var(--c-ship)"></div>출하</div>
+    </div>
+    <div class="chart-wrap"><canvas id="weeklyCanvas"></canvas></div>`;
+
+  const weeks = Array.from({length:5}, (_,i)=>startOfWeek(addDays(state.refDate, -4*7+i*7)));
+  const wm = {};
+  weeks.forEach(w => { const ds = toDS(w); wm[ds] = { label:`${w.getMonth()+1}/${w.getDate()}(주)`, 조립:0, 글레이징:0, 포장:0, 출하:0 }; });
+  getFilteredRows().forEach(r => {
+    const map = {
+      '조립': parseDate(r['조립완료시간']),
+      '글레이징': parseDate(getGlzVal(r)),
+      '포장': parseDate(r['포장완료시간']),
+      '출하': shipDateOf(r),
+    };
+    Object.entries(map).forEach(([k,d]) => {
+      if (!d) return;
+      const ws = toDS(startOfWeek(d));
+      if (wm[ws]) wm[ws][k]++;
+    });
+  });
+  const vals = Object.values(wm);
+  if (charts.weekly) charts.weekly.destroy();
+  charts.weekly = new Chart(document.getElementById('weeklyCanvas'), {
+    type: 'bar',
+    data: { labels: vals.map(v=>v.label), datasets: [
+      { label:'조립',    data: vals.map(v=>v.조립),    backgroundColor: state.stageColors['조립'] },
+      { label:'글레이징', data: vals.map(v=>v.글레이징), backgroundColor: state.stageColors['글레이징'] },
+      { label:'포장',    data: vals.map(v=>v.포장),    backgroundColor: state.stageColors['포장'] },
+      { label:'출하',    data: vals.map(v=>v.출하),    backgroundColor: state.stageColors['출하'] },
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid:{display:false}, ticks:{color:'rgba(240,244,255,0.5)',font:{size:10}} },
+        y: { grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'rgba(240,244,255,0.45)',font:{size:10}}, beginAtZero:true }
+      }
+    }
+  });
+}
+
+/* ── Panel 7: Floor table ── */
+function getFloorMap() {
+  const all = [];
+  for (let f = state.floorStart; f <= state.floorEnd; f++) all.push(f);
+  const fm = {};
+  all.forEach(f => { fm[f] = { 조립:0, 글레이징:0, 포장:0, 출하:0, 설치:0, total:0, rows: [] }; });
+  getFilteredRows().forEach(r => {
+    const fn = normFloor(r['층'] || r['층수']);
+    if (fn === null || !fm[fn]) return;
+    fm[fn].total++;
+    fm[fn].rows.push(r);
+    const st = (r['상태']||'').trim();
+    ['조립','글레이징','포장','출하','설치'].forEach(s => {
+      if (isCompletedBy(s, st, r, state.refDate)) fm[fn][s]++;
+    });
+  });
+  return { floors: all, fm };
+}
+
+function renderFloorTable() {
+  const body = document.getElementById('p7-body');
+  if (!body) return;
+  body.innerHTML = `<div class="floor-scroll"><table class="floor-tbl" id="floorTbl"></table></div>`;
+  const { floors, fm } = getFloorMap();
+  const stages = ['조립','글레이징','포장','출하','설치'];
+  const stageColors = state.stageColors;
+  const hdrs = floors.map(f => `<th>${f}층</th>`).join('');
+  const rowsHTML = stages.map(s => {
+    const cells = floors.map(f => {
+      const v = fm[f][s]||0;
+      return v > 0
+        ? `<td class="has-val" onclick="showFloorStageDrilldown(${f},'${s}')">${v}</td>`
+        : `<td></td>`;
+    }).join('');
+    return `<tr><td class="row-lbl color-pick" style="color:${stageColors[s]};border-left:3px solid ${stageColors[s]};" onclick="openColorPicker('${s}')" title="클릭하여 ${s} 색상 변경">${s}<span class="color-ico">●</span></td>${cells}</tr>`;
+  }).join('');
+  const planCells = floors.map(f => {
+    const v = fm[f].total||0;
+    return v > 0
+      ? `<td class="has-val" onclick="showFloorPlanDrilldown(${f})">${v}</td>`
+      : `<td></td>`;
+  }).join('');
+  document.getElementById('floorTbl').innerHTML =
+    `<thead><tr><th class="sticky-col">구분</th>${hdrs}</tr></thead>
+     <tbody>${rowsHTML}<tr class="plan"><td class="row-lbl">계획</td>${planCells}</tr></tbody>`;
+}
+
+/* ── Panel 8: Process chart ── */
+function renderProcessChart() {
+  const body = document.getElementById('p8-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="chart-legend">
+      <div class="leg-item"><div class="leg-swatch" style="background:rgba(255,255,255,0.15)"></div>계획</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:var(--c-asm)"></div>조립</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:var(--c-ship)"></div>출하</div>
+    </div>
+    <div class="chart-wrap scroll-x"><div class="chart-inner" id="procInner"><canvas id="processCanvas"></canvas></div></div>`;
+
+  const { floors, fm } = getFloorMap();
+  const inner = document.getElementById('procInner');
+  const wrap = inner.parentElement;
+  const minBarW = 36;
+  const containerW = Math.max(80, wrap.clientWidth - 4);
+  const needW = Math.max(containerW, floors.length * minBarW);
+  inner.style.width = needW + 'px';
+
+  if (charts.process) charts.process.destroy();
+  charts.process = new Chart(document.getElementById('processCanvas'), {
+    type: 'bar',
+    data: { labels: floors.map(f=>f+''), datasets: [
+      { label:'계획', data: floors.map(f=>fm[f].total||0), backgroundColor:'rgba(255,255,255,0.12)' },
+      { label:'조립', data: floors.map(f=>fm[f].조립||0), backgroundColor: state.stageColors['조립'] },
+      { label:'출하', data: floors.map(f=>fm[f].출하||0), backgroundColor: state.stageColors['출하'] },
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid:{display:false}, ticks:{color:'rgba(240,244,255,0.45)',font:{size:9},autoSkip:false,maxRotation:0} },
+        y: { grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'rgba(240,244,255,0.4)',font:{size:9}}, beginAtZero:true }
+      }
+    }
+  });
+}
+
+/* ════════════════════════════════════════════
+   curing room temp/humid (Panel 9)
+   ════════════════════════════════════════════ */
+function generateTempHumidDemo() {
+  const list = [];
+  const baseDate = new Date(state.refDate);
+  baseDate.setHours(0,0,0,0);
+  
+  // 10분 단위로 24시간(144개 포인트) 데이터 생성
+  for (let i = 0; i < 144; i++) {
+    const d = new Date(baseDate.getTime() + i * 10 * 60 * 1000);
+    const timeStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    
+    const item = { time: timeStr };
+    const hourRad = (d.getHours() + d.getMinutes() / 60) * Math.PI / 12;
+    
+    for (let r = 1; r <= 6; r++) {
+      const baseTemp = 22.0 + (r * 0.2) - 0.7; 
+      const tempVar = 3.0 * Math.sin(hourRad - Math.PI / 1.5) + (Math.sin(i * 0.1) * 0.15);
+      const temp = Math.round((baseTemp + tempVar) * 10) / 10;
+      
+      const baseHumid = 70 + (r * 1.5);
+      const humidVar = -15 * Math.sin(hourRad - Math.PI / 1.5) + (Math.cos(i * 0.1) * 1.0);
+      const humid = Math.min(100, Math.max(0, Math.round(baseHumid + humidVar)));
+      
+      item[`room${r}_temp`] = temp;
+      item[`room${r}_humid`] = humid;
+    }
+    list.push(item);
+  }
+  return list;
+}
+
+function renderCuringTempHumid() {
+  const body = document.getElementById('p9-body');
+  if (!body) return;
+  
+  // 패널 헤더 actions 영역에 요약 컨테이너 주입
+  const headerActions = document.getElementById('p9-actions');
+  if (headerActions && !document.getElementById('curingSummary')) {
+    headerActions.innerHTML = `
+      <div id="curingSummary" style="font-weight:600; color:var(--text-pri); font-size:0.6875rem; display:flex; align-items:center; gap:8px;">
+        <span id="curingSummaryText">MKT: —</span>
+        <span style="display:inline-flex; align-items:center; gap:4px; margin-left:8px; border-left: 0.5px solid rgba(255,255,255,0.15); padding-left:8px;">
+          <span id="liveDot" style="width:7px;height:7px;border-radius:50%;background:#555;display:inline-block;transition:background .4s;"></span>
+          <span id="liveText" style="font-size:0.625rem; color:var(--text-sec); font-weight:normal; white-space:nowrap;">프록시 미연결</span>
+          <button id="liveRefreshBtn" onclick="liveRefreshNow()" style="background:rgba(255,255,255,0.06); border:0.5px solid rgba(255,255,255,0.1); color:var(--text-sec); border-radius:3px; padding:1px 4px; font-size:0.5625rem; cursor:pointer; margin-left:2px; height:16px; display:inline-flex; align-items:center; justify-content:center; font-family:inherit;">↺ 갱신</button>
+          <button id="liveSessionBtn" onclick="injectSessionKey()" style="background:rgba(255,255,255,0.06); border:0.5px solid rgba(255,255,255,0.1); color:#1adf8b; border-radius:3px; padding:1px 4px; font-size:0.5625rem; cursor:pointer; margin-left:2px; height:16px; display:inline-flex; align-items:center; justify-content:center; font-family:inherit; border-color: rgba(26,223,139,0.3);">🔑 세션 갱신</button>
+        </span>
+      </div>`;
+  }
+  
+  if (!state.tempHumidRows || !state.tempHumidRows.length) {
+    state.tempHumidRows = generateTempHumidDemo();
+  }
+  
+  const tempColors = ['#ff4d4d', '#ff7675', '#ff9f43', '#ee5253', '#feca57', '#ff6b6b'];
+  const humidColors = ['#38ef7d', '#00d2d3', '#2e86de', '#54a0ff', '#1dd1a1', '#10ac84'];
+  
+  body.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px; flex-wrap:wrap; font-size:0.6875rem; color:var(--text-sec); width:100%;">
+      <!-- 2열 범례 필터 -->
+      <div style="display:flex; gap:16px; flex:1; min-width:300px; flex-wrap:wrap;">
+        <!-- 1열: 온도 -->
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-weight:600; color:#ff6b6b; min-width:24px;">온도</span>
+          <div style="display:flex; gap:3px; align-items:center;">
+            ${[1,2,3,4,5,6].map(i => {
+              const active = state.curingFilter.tempRooms[i-1];
+              const color = tempColors[i-1];
+              return `
+                <button onclick="toggleCuringRoomItem('temp', ${i-1})" 
+                        style="display:flex; align-items:center; justify-content:center; width:18px; height:18px; background:${active ? 'rgba(255,77,77,0.18)' : 'transparent'}; border:0.5px solid ${active ? color : 'rgba(255,255,255,0.1)'}; color:${active ? '#ff8f8f' : 'var(--text-dim)'}; border-radius:3px; font-size:0.625rem; font-weight:600; cursor:pointer; transition:all .12s;"
+                        title="${i}호실 온도 필터">
+                  ${i}
+                </button>
+              `;
+            }).join('')}
+            <button onclick="toggleAllCuring('temp')" style="background:rgba(255,255,255,0.06); border:0.5px solid rgba(255,255,255,0.1); color:var(--text-sec); border-radius:3px; padding:2px 5px; font-size:0.625rem; font-weight:600; cursor:pointer; margin-left:2px; height:18px; display:flex; align-items:center; justify-content:center;">전체</button>
+          </div>
+        </div>
+        
+        <!-- 2열: 습도 -->
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-weight:600; color:#4a9eff; min-width:24px;">습도</span>
+          <div style="display:flex; gap:3px; align-items:center;">
+            ${[1,2,3,4,5,6].map(i => {
+              const active = state.curingFilter.humidRooms[i-1];
+              const color = humidColors[i-1];
+              return `
+                <button onclick="toggleCuringRoomItem('humid', ${i-1})" 
+                        style="display:flex; align-items:center; justify-content:center; width:18px; height:18px; background:${active ? 'rgba(74,158,255,0.18)' : 'transparent'}; border:0.5px solid ${active ? color : 'rgba(255,255,255,0.1)'}; color:${active ? '#78b5ff' : 'var(--text-dim)'}; border-radius:3px; font-size:0.625rem; font-weight:600; cursor:pointer; transition:all .12s;"
+                        title="${i}호실 습도 필터">
+                  ${i}
+                </button>
+              `;
+            }).join('')}
+            <button onclick="toggleAllCuring('humid')" style="background:rgba(255,255,255,0.06); border:0.5px solid rgba(255,255,255,0.1); color:var(--text-sec); border-radius:3px; padding:2px 5px; font-size:0.625rem; font-weight:600; cursor:pointer; margin-left:2px; height:18px; display:flex; align-items:center; justify-content:center;">전체</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 기준선 제어 -->
+      <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer; user-select:none;">
+          <input type="checkbox" id="chk_show_target" ${state.curingFilter.showTarget ? 'checked' : ''} onchange="toggleCuringTarget()" style="accent-color:var(--accent); cursor:pointer;">
+          <span>기준선</span>
+        </label>
+      </div>
+    </div>
+    <div class="chart-wrap" style="position:relative; width:100%; height:calc(100% - 26px);"><canvas id="curingCanvas"></canvas></div>
+  `;
+
+  drawCuringChart();
+}
+
+function toggleCuringRoomItem(type, idx) {
+  if (type === 'temp') {
+    state.curingFilter.tempRooms[idx] = !state.curingFilter.tempRooms[idx];
+  } else {
+    state.curingFilter.humidRooms[idx] = !state.curingFilter.humidRooms[idx];
+  }
+  renderCuringTempHumid();
+}
+
+function toggleAllCuring(type) {
+  const rooms = type === 'temp' ? state.curingFilter.tempRooms : state.curingFilter.humidRooms;
+  const allActive = rooms.every(Boolean);
+  for (let i = 0; i < 6; i++) {
+    rooms[i] = !allActive;
+  }
+  renderCuringTempHumid();
+}
+
+function toggleCuringTarget() {
+  state.curingFilter.showTarget = !state.curingFilter.showTarget;
+  drawCuringChart();
+}
+
+function calculateMKT(temperatures) {
+  if (!temperatures || !temperatures.length) return null;
+  const dHR = 10000; 
+  let sumExp = 0;
+  let count = 0;
+  temperatures.forEach(t => {
+    if (t == null) return;
+    const kelvin = t + 273.15;
+    sumExp += Math.exp(-dHR / kelvin);
+    count++;
+  });
+  if (count === 0) return null;
+  const mktKelvin = dHR / -Math.log(sumExp / count);
+  return Math.round((mktKelvin - 273.15) * 10) / 10;
+}
+
+function drawCuringChart() {
+  const canvas = document.getElementById('curingCanvas');
+  if (!canvas) return;
+
+  const dataRows = state.tempHumidRows;
+  if (!dataRows || !dataRows.length) return;
+
+  const labels = dataRows.map(r => r.time.split(' ')[1] || r.time);
+  const datasets = [];
+  const tempRooms = state.curingFilter.tempRooms;
+  const humidRooms = state.curingFilter.humidRooms;
+
+  const tempColors = ['#ff4d4d', '#ff7675', '#ff9f43', '#ee5253', '#feca57', '#ff6b6b'];
+  const humidColors = ['#38ef7d', '#00d2d3', '#2e86de', '#54a0ff', '#1dd1a1', '#10ac84'];
+
+  let allTemps = [];
+  let allHumids = [];
+
+  for (let i = 0; i < 6; i++) {
+    const rIdx = i + 1;
+    const temps = dataRows.map(r => r[`room${rIdx}_temp`]);
+    const humids = dataRows.map(r => r[`room${rIdx}_humid`]);
+
+    if (tempRooms[i]) {
+      allTemps.push(...temps.filter(v => v != null));
+      datasets.push({
+        label: `${rIdx}호 온도`,
+        data: temps,
+        borderColor: tempColors[i],
+        backgroundColor: tempColors[i] + '11',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        tension: 0.3,
+        yAxisID: 'yTemp'
+      });
+    }
+
+    if (humidRooms[i]) {
+      allHumids.push(...humids.filter(v => v != null));
+      datasets.push({
+        label: `${rIdx}호 습도`,
+        data: humids,
+        borderColor: humidColors[i],
+        backgroundColor: humidColors[i] + '11',
+        borderWidth: 1.2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        tension: 0.3,
+        yAxisID: 'yHumid'
+      });
+    }
+  }
+
+  const mkt = calculateMKT(allTemps);
+  const avgHumid = allHumids.length ? Math.round(allHumids.reduce((a,b)=>a+b,0)/allHumids.length) : null;
+  const summaryTextEl = document.getElementById('curingSummaryText');
+  if (summaryTextEl) {
+    let summaryText = '';
+    if (mkt !== null) summaryText += `평균 온도(MKT): <span style="color:#ff6b6b">${mkt}°C</span>`;
+    if (avgHumid !== null) {
+      if (summaryText) summaryText += ' · ';
+      summaryText += `평균 습도: <span style="color:#4a9eff">${avgHumid}%</span>`;
+    }
+    summaryTextEl.innerHTML = summaryText || 'MKT: —';
+  }
+
+  const annotationPlugin = {
+    id: 'curingAnnotations',
+    afterDraw(chart) {
+      if (!chart.scales.yTemp) return;
+      const { ctx, chartArea: { left, right, top, bottom, width } } = chart;
+      const yTempScale = chart.scales.yTemp;
+      const yHumidScale = chart.scales.yHumid;
+      const xScale = chart.scales.x;
+
+      if (state.curingFilter.showTarget) {
+        ctx.save();
+        if (tempRooms.some(Boolean) && yTempScale) {
+          const y22 = yTempScale.getPixelForValue(22);
+          ctx.beginPath();
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = 'rgba(255, 107, 107, 0.45)';
+          ctx.lineWidth = 1;
+          ctx.moveTo(left, y22);
+          ctx.lineTo(right, y22);
+          ctx.stroke();
+
+          ctx.fillStyle = '#ff8f8f';
+          ctx.font = '500 9px "Noto Sans KR"';
+          ctx.textAlign = 'left';
+          ctx.fillText('➤ 22°C (Target)', right - 75, y22 - 3);
+        }
+
+        if (humidRooms.some(Boolean) && yHumidScale) {
+          const y70 = yHumidScale.getPixelForValue(70);
+          ctx.beginPath();
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = 'rgba(74, 158, 255, 0.45)';
+          ctx.lineWidth = 1;
+          ctx.moveTo(left, y70);
+          ctx.lineTo(right, y70);
+          ctx.stroke();
+
+          ctx.fillStyle = '#78b5ff';
+          ctx.font = '500 9px "Noto Sans KR"';
+          ctx.textAlign = 'left';
+          ctx.fillText('➤ 70% (Target)', right - 75, y70 - 3);
+        }
+        ctx.restore();
+      }
+
+      const targetDataset = chart.data.datasets[0];
+      if (!targetDataset || !targetDataset.data.length) return;
+
+      const data = targetDataset.data;
+      const isTemp = targetDataset.yAxisID === 'yTemp';
+      const scale = isTemp ? yTempScale : yHumidScale;
+      const unit = isTemp ? '°C' : '%';
+      const color = isTemp ? '#ff4d4d' : '#4a9eff';
+
+      const validPoints = data.map((v, idx) => ({ v, idx })).filter(item => item.v != null);
+      if (!validPoints.length) return;
+
+      const maxPt = validPoints.reduce((max, cur) => cur.v > max.v ? cur : max, validPoints[0]);
+      const minPt = validPoints.reduce((min, cur) => cur.v < min.v ? cur : min, validPoints[0]);
+      const lastPt = validPoints[validPoints.length - 1];
+
+      ctx.save();
+      ctx.font = '600 9px "Noto Sans KR"';
+
+      const maxPxX = xScale.getPixelForValue(maxPt.idx);
+      const maxPxY = scale.getPixelForValue(maxPt.v);
+      ctx.beginPath();
+      ctx.arc(maxPxX, maxPxY, 4, 0, 2 * Math.PI);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.fillStyle = '#111c2e';
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.fillText(`${maxPt.v}${unit}`, maxPxX, maxPxY - 8);
+
+      const minPxX = xScale.getPixelForValue(minPt.idx);
+      const minPxY = scale.getPixelForValue(minPt.v);
+      ctx.beginPath();
+      ctx.arc(minPxX, minPxY, 4, 0, 2 * Math.PI);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.fillStyle = '#111c2e';
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.fillText(`${minPt.v}${unit}`, minPxX, minPxY + 12);
+
+      const lastPxX = xScale.getPixelForValue(lastPt.idx);
+      const lastPxY = scale.getPixelForValue(lastPt.v);
+
+      ctx.beginPath();
+      ctx.arc(lastPxX, lastPxY, 3.5, 0, 2 * Math.PI);
+      ctx.fillStyle = color;
+      ctx.fill();
+
+      ctx.fillStyle = color;
+      ctx.textAlign = 'left';
+      ctx.fillText(`➤ ${lastPt.v}${unit}`, lastPxX + 6, lastPxY + 3);
+
+      ctx.restore();
+    }
+  };
+
+  if (charts.curing) charts.curing.destroy();
+
+  let minTemp = 18, maxTemp = 28;
+  if (allTemps.length) {
+    const minVal = Math.min(...allTemps);
+    const maxVal = Math.max(...allTemps);
+    minTemp = Math.floor(Math.min(18, minVal) - 1);
+    maxTemp = Math.ceil(Math.max(28, maxVal) + 1);
+  }
+
+  charts.curing = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          bodyFont: { size: 10 }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            color: 'rgba(240,244,255,0.45)',
+            font: { size: 8 },
+            maxTicksLimit: 12
+          }
+        },
+        yTemp: {
+          type: 'linear',
+          position: 'left',
+          min: minTemp,
+          max: maxTemp,
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          title: {
+            display: true,
+            text: '온도 (°C)',
+            color: '#ff6b6b',
+            font: { size: 9, weight: 600 }
+          },
+          ticks: {
+            color: '#ff6b6b',
+            font: { size: 8 },
+            stepSize: 2
+          },
+          display: tempRooms.some(Boolean)
+        },
+        yHumid: {
+          type: 'linear',
+          position: 'right',
+          min: 40,
+          max: 100,
+          grid: { display: false },
+          title: {
+            display: true,
+            text: '습도 (%)',
+            color: '#4a9eff',
+            font: { size: 9, weight: 600 }
+          },
+          ticks: {
+            color: '#4a9eff',
+            font: { size: 8 },
+            stepSize: 10
+          },
+          display: humidRooms.some(Boolean)
+        }
+      }
+    },
+    plugins: [annotationPlugin]
+  });
+}
+
+/* ── Toast 알림 함수 ── */
+let _toastTmr = null;
+function showToast(msg, ms = 2400) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(_toastTmr);
+  _toastTmr = setTimeout(() => el.classList.remove('show'), ms);
+}
+
+/* ── 실시간 온습도 프록시 연동 로직 ── */
+const PROXY_URL = (() => {
+  if (window.location.protocol === 'file:') {
+    return 'http://localhost:8765';
+  }
+  const isLocal = window.location.hostname === 'localhost' || 
+                  window.location.hostname === '127.0.0.1' || 
+                  window.location.hostname.startsWith('192.168.');
+  if (isLocal) {
+    return window.location.protocol + '//' + window.location.hostname + ':8765';
+  } else {
+    return window.location.protocol + '//' + window.location.hostname + ':8090';
+  }
+})();
+const LIVE_INTERVAL_MS = 2 * 60 * 1000; // 2분마다 자동 갱신
+let liveTimer = null;
+let liveConnected = false;
+
+async function liveFetch() {
+  const dot = document.getElementById('liveDot');
+  const txt = document.getElementById('liveText');
+  try {
+    const res = await fetch(`${PROXY_URL}/api/data`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+
+    if (!json.rows || !json.rows.length) {
+      setLiveStatus('orange', '데이터 수집 중...');
+      return;
+    }
+
+    // 실시간 데이터를 상태에 반영
+    state.tempHumidRows = json.rows;
+
+    const upAt = json.updatedAt ? new Date(json.updatedAt) : new Date();
+    const hhmm = `${String(upAt.getHours()).padStart(2,'0')}:${String(upAt.getMinutes()).padStart(2,'0')}`;
+    
+    // UI 갱신
+    renderCuringTempHumid();
+    liveConnected = true;
+    setLiveStatus('limegreen', `연결됨 · ${hhmm}`);
+  } catch(e) {
+    liveConnected = false;
+    setLiveStatus('#555', '프록시 미연결');
+    if (txt) txt.title = e.message;
+  }
+}
+
+function setLiveStatus(color, msg) {
+  const dot = document.getElementById('liveDot');
+  const txt = document.getElementById('liveText');
+  if (dot) dot.style.background = color;
+  if (txt) txt.textContent = msg;
+}
+
+function startLiveMode() {
+  liveFetch();
+  if (liveTimer) clearInterval(liveTimer);
+  liveTimer = setInterval(liveFetch, LIVE_INTERVAL_MS);
+}
+
+function liveRefreshNow() {
+  fetch(`${PROXY_URL}/api/refresh`).catch(()=>{});
+  showToast('↺ 서버에 갱신 요청 전송...');
+  setTimeout(liveFetch, 3000); // 3초 후 데이터 재조회
+}
+
+async function injectSessionKey() {
+  const currentKey = localStorage.getItem('last_jsessionid') || '';
+  const key = prompt('tempcare.kr 로그인 후 복사한 JSESSIONID 값을 입력해 주세요:', currentKey);
+  if (key === null) return;
+  
+  const trimmedKey = key.strip ? key.strip() : key.trim();
+  if (!trimmedKey) {
+    showToast('❌ 세션 키가 비어 있습니다.');
+    return;
+  }
+
+  showToast('🔑 세션 갱신 및 검증 시도 중...');
+  try {
+    const res = await fetch(`${PROXY_URL}/api/session?key=${encodeURIComponent(trimmedKey)}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    
+    if (json.ok) {
+      localStorage.setItem('last_jsessionid', trimmedKey);
+      showToast('✅ 세션 갱신 성공! 실시간 데이터를 불러옵니다.');
+      setTimeout(liveFetch, 1000);
+    } else {
+      showToast('❌ 세션 검증 실패: 유효하지 않은 쿠키 값입니다.', 4000);
+    }
+  } catch(e) {
+    showToast('❌ 서버 연결 실패: ' + e.message, 4000);
+  }
+}
+
+/* 프록시 서버 활성화 여부 감지 */
+async function checkAndStartLive() {
+  try {
+    const res = await fetch(`${PROXY_URL}/api/status`, { cache: 'no-store' });
+    if (res.ok) {
+      startLiveMode();
+    }
+  } catch(e) {
+    // 프록시 미작동 시 데모 데이터 기반으로 자동 작동 유지
+  }
+}
+
+/* ════════════════════════════════════════════
+   MODAL — drilldown
+   ════════════════════════════════════════════ */
+function openModal(title, contentHTML) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = contentHTML;
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+const PARTNO_KEYS = ['품번','부재번호','품목번호','자재번호','부재명','ID','part_no','partNo'];
+function pickPartNoCol(rows) {
+  for (const k of PARTNO_KEYS) {
+    if (rows.some(r => r[k] != null && r[k] !== '')) return k;
+  }
+  return null;
+}
+
+function hexToRgba(hex, alpha) {
+  const m = String(hex||'').match(/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!m) return `rgba(26,223,139,${alpha})`;
+  return `rgba(${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)},${alpha})`;
+}
+
+function renderRowsTable(rows, opts = {}) {
+  if (!rows.length) return `<div class="modal-empty">표시할 데이터가 없습니다.</div>`;
+  const partNoCol = pickPartNoCol(rows);
+  const glzCol = GLZ_KEYS.find(k => rows.some(r => r[k] != null)) || '글래이징완료시간';
+  const defaultCols = [partNoCol, '상태', '조립완료시간', glzCol, '포장완료시간', '출하일'].filter(Boolean);
+  const cols = opts.cols || defaultCols;
+
+  // Map clicked stage → which column to highlight
+  const stageToCol = {
+    '조립': '조립완료시간',
+    '글레이징': glzCol,
+    '포장': '포장완료시간',
+    '출하': '출하일',
+    '설치': '설치완료시간',
+  };
+  const hlCol   = opts.highlight ? stageToCol[opts.highlight] : null;
+  const hlColor = opts.highlight ? (state.stageColors[opts.highlight] || '#1adf8b') : null;
+  const styleAttr = hlColor
+    ? ` style="--hl-c:${hlColor}; --hl-bg:${hexToRgba(hlColor,0.22)}; --hl-bg-l:${hexToRgba(hlColor,0.08)}"`
+    : '';
+
+  return `<table class="modal-table"${styleAttr}>
+    <thead><tr>${cols.map(c => `<th class="${c === hlCol ? 'hl' : ''}">${escapeHTML(c)}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r => `<tr>${cols.map(c => {
+      const cls = c === hlCol ? 'hl' : '';
+      const v = r[c];
+      if (v == null || v === '') return `<td class="${cls}">—</td>`;
+      if (v instanceof Date) return `<td class="${cls}">${toDS(v)}</td>`;
+      return `<td class="${cls}">${escapeHTML(String(v))}</td>`;
+    }).join('')}</tr>`).join('')}</tbody></table>
+    <div style="margin-top:10px; font-size:0.6875rem; color:var(--text-dim);">
+      총 ${rows.length}건${opts.highlight ? ` · <span style="color:${hlColor};font-weight:600">${escapeHTML(opts.highlight)}</span> 기준` : ''}
+    </div>`;
+}
+
+function showDayStageDrilldown(stage, dayD) {
+  const ds = toDS(dayD);
+  const colMap = {
+    '조립': r => parseDate(r['조립완료시간']),
+    '글레이징': r => parseDate(getGlzVal(r)),
+    '포장': r => parseDate(r['포장완료시간']),
+    '출하': r => shipDateOf(r),
+  };
+  const filtered = getFilteredRows().filter(r => { const d = colMap[stage](r); return d && toDS(d) === ds; });
+  openModal(`${fmtDate(dayD)} · ${stage} 완료 부재`, renderRowsTable(filtered, { highlight: stage }));
+}
+
+function showFloorStageDrilldown(floor, stage) {
+  const filtered = getFilteredRows().filter(r => {
+    const fn = normFloor(r['층'] || r['층수']);
+    if (fn !== floor) return false;
+    const st = (r['상태']||'').trim();
+    return isCompletedBy(stage, st, r, state.refDate);
+  });
+  openModal(`${floor}층 · ${stage} 완료 부재 목록`, renderRowsTable(filtered, { highlight: stage }));
+}
+
+function showFloorPlanDrilldown(floor) {
+  // 계획 row clicked → show all rows of that floor where 상태 is empty / 조립중 (미착수)
+  const filtered = getFilteredRows().filter(r => {
+    const fn = normFloor(r['층'] || r['층수']);
+    if (fn !== floor) return false;
+    const st = (r['상태']||'').trim();
+    return !st || st === '조립중' || st === '미착수';
+  });
+  openModal(`${floor}층 · 미착수 부재 목록`, renderRowsTable(filtered));
+}
+
+/* ════════════════════════════════════════════
+   REF DATE PICKER
+   ════════════════════════════════════════════ */
+function openRefDatePicker() {
+  const inp = document.getElementById('refDateInput');
+  inp.value = toDS(state.refDate);
+  inp.style.pointerEvents = 'auto';
+  inp.focus();
+  inp.click();
+  if (typeof inp.showPicker === 'function') {
+    try { inp.showPicker(); } catch(e) {}
+  }
+}
+document.getElementById('refDateBlock').addEventListener('click', openRefDatePicker);
+document.getElementById('refDateInput').addEventListener('change', e => {
+  const v = e.target.value;
+  if (!v) return;
+  const d = new Date(v + 'T00:00:00');
+  if (!isNaN(d)) {
+    state.refDate = d;
+    renderAll();
+  }
+});
+
+/* ════════════════════════════════════════════
+   SNAP TO ALIGNMENT (edges + centers of neighbor panels)
+   ════════════════════════════════════════════ */
+const SNAP_THRESHOLD = 10;     // pixels — within this distance, snap to neighbor's edge/center
+const HEADER_H = 54;           // for converting board-internal y → screen y
+
+function getSnapTargets(excludeId) {
+  const boardW = window.innerWidth;
+  const boardH = window.innerHeight - 54;
+  const xs = [], ys = [];
+  // Edges of all other panels (converted from percentage to pixels)
+  Object.keys(state.layout).forEach(id => {
+    if (id === excludeId) return;
+    const L = state.layout[id];
+    if (!L) return;
+    const pxX = L.x * boardW;
+    const pxY = L.y * boardH;
+    const pxW = L.w * boardW;
+    const pxH = L.h * boardH;
+    xs.push(pxX, pxX + pxW, pxX + pxW / 2);
+    ys.push(pxY, pxY + pxH, pxY + pxH / 2);
+  });
+  // Also: board edges (left=0, right=window width, top=0, bottom=board height)
+  xs.push(0, boardW);
+  ys.push(0, boardH);
+  return { xs, ys };
+}
+
+function nearestSnap(val, candidates) {
+  let best = null, bestD = SNAP_THRESHOLD;
+  for (const c of candidates) {
+    const d = Math.abs(val - c);
+    if (d < bestD) { bestD = d; best = c; }
+  }
+  return best;
+}
+
+function ensureSnapGuide(orientation) {
+  const id = orientation === 'v' ? 'snapGuideV' : 'snapGuideH';
+  let g = document.getElementById(id);
+  if (!g) {
+    g = document.createElement('div');
+    g.id = id;
+    g.className = 'snap-guide';
+    document.body.appendChild(g);
+  }
+  return g;
+}
+function showVGuide(boardX) {
+  const g = ensureSnapGuide('v');
+  g.style.left = boardX + 'px';
+  g.style.top = HEADER_H + 'px';
+  g.style.width = '1px';
+  g.style.height = (window.innerHeight - HEADER_H) + 'px';
+  g.classList.add('show');
+}
+function showHGuide(boardY) {
+  const g = ensureSnapGuide('h');
+  g.style.top = (boardY + HEADER_H) + 'px';
+  g.style.left = '0';
+  g.style.width = window.innerWidth + 'px';
+  g.style.height = '1px';
+  g.classList.add('show');
+}
+function hideGuides() {
+  document.querySelectorAll('.snap-guide').forEach(g => g.classList.remove('show'));
+}
+
+
+function attachInteractions() {
+  document.querySelectorAll('.panel-header').forEach(h => {
+    h.addEventListener('mousedown', e => {
+      // Don't start drag while a title is being edited
+      if (e.target.classList && e.target.classList.contains('editing')) return;
+      if (e.target.closest('.panel-actions')) return;
+      startDrag(e, h.dataset.panel);
+    });
+  });
+  document.querySelectorAll('.rs-handle').forEach(h => {
+    h.addEventListener('mousedown', e => startResize(e, h.dataset.panel, h.dataset.dir, h));
+  });
+  // Double-click panel title to edit in place
+  document.querySelectorAll('.panel-title').forEach(t => {
+    t.title = '더블클릭하여 제목 수정';
+    t.addEventListener('dblclick', function(e) {
+      e.stopPropagation();
+      this.contentEditable = 'true';
+      this.classList.add('editing');
+      this.focus();
+      const range = document.createRange();
+      range.selectNodeContents(this);
+      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    });
+    t.addEventListener('blur', function() {
+      this.contentEditable = 'false';
+      this.classList.remove('editing');
+      const id = this.id.replace('-title', '');
+      const def = PANEL_DEFS.find(p => p.id === id);
+      const newTitle = this.textContent.trim();
+      if (def && newTitle) def.title = newTitle;
+      else if (def) this.textContent = def.title;
+    });
+    t.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
+      if (e.key === 'Escape') {
+        const id = this.id.replace('-title', '');
+        const def = PANEL_DEFS.find(p => p.id === id);
+        if (def) this.textContent = def.title;
+        this.blur();
+      }
+    });
+  });
+}
+
+function startDrag(e, id) {
+  e.preventDefault();
+  const panel = document.getElementById(id);
+  const boardW = window.innerWidth;
+  const boardH = window.innerHeight - 54;
+  
+  // Convert current percentage layout to pixels for dragging calculations
+  const L0 = {
+    x: state.layout[id].x * boardW,
+    y: state.layout[id].y * boardH,
+    w: state.layout[id].w * boardW,
+    h: state.layout[id].h * boardH
+  };
+  
+  const startX = e.clientX, startY = e.clientY;
+  panel.classList.add('dragging');
+  document.body.classList.add('is-dragging');
+  let hoverTarget = null;
+
+  function onMove(ev) {
+    const dx = ev.clientX - startX, dy = ev.clientY - startY;
+    let nx = L0.x + dx, ny = L0.y + dy;
+    nx = Math.max(0, Math.min(boardW - L0.w, nx));
+    ny = Math.max(0, Math.min(boardH - 40, ny));
+
+    // ── Snap to neighbor edges/centers ──
+    const T = getSnapTargets(id);
+    const cx = nx + L0.w / 2;
+    const cy = ny + L0.h / 2;
+    // X: try left edge, right edge, center (in priority order)
+    const sxL = nearestSnap(nx, T.xs);
+    const sxR = nearestSnap(nx + L0.w, T.xs);
+    const sxC = nearestSnap(cx, T.xs);
+    let xGuide = null;
+    if (sxL !== null && (sxR === null || Math.abs(sxL - nx) <= Math.abs(sxR - (nx + L0.w)))
+                     && (sxC === null || Math.abs(sxL - nx) <= Math.abs(sxC - cx))) { nx = sxL; xGuide = sxL; }
+    else if (sxR !== null && (sxC === null || Math.abs(sxR - (nx + L0.w)) <= Math.abs(sxC - cx))) { nx = sxR - L0.w; xGuide = sxR; }
+    else if (sxC !== null) { nx = sxC - L0.w/2; xGuide = sxC; }
+    // Y: same logic
+    const syT = nearestSnap(ny, T.ys);
+    const syB = nearestSnap(ny + L0.h, T.ys);
+    const syC = nearestSnap(cy, T.ys);
+    let yGuide = null;
+    if (syT !== null && (syB === null || Math.abs(syT - ny) <= Math.abs(syB - (ny + L0.h)))
+                     && (syC === null || Math.abs(syT - ny) <= Math.abs(syC - cy))) { ny = syT; yGuide = syT; }
+    else if (syB !== null && (syC === null || Math.abs(syB - (ny + L0.h)) <= Math.abs(syC - cy))) { ny = syB - L0.h; yGuide = syB; }
+    else if (syC !== null) { ny = syC - L0.h/2; yGuide = syC; }
+
+    if (xGuide !== null) showVGuide(xGuide); else hideGuides.call(null) || (document.getElementById('snapGuideV')?.classList.remove('show'));
+    if (yGuide !== null) showHGuide(yGuide); else document.getElementById('snapGuideH')?.classList.remove('show');
+
+    panel.style.left = nx + 'px';
+    panel.style.top = ny + 'px';
+
+    // detect swap target
+    panel.style.pointerEvents = 'none';
+    const elUnder = document.elementFromPoint(ev.clientX, ev.clientY);
+    panel.style.pointerEvents = '';
+    const tgt = elUnder?.closest('.panel');
+    if (hoverTarget && hoverTarget !== tgt) { hoverTarget.classList.remove('swap-target'); hoverTarget = null; }
+    if (tgt && tgt !== panel && tgt !== hoverTarget) { tgt.classList.add('swap-target'); hoverTarget = tgt; }
+  }
+  function onUp(ev) {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    panel.classList.remove('dragging');
+    document.body.classList.remove('is-dragging');
+    hideGuides();
+    if (hoverTarget) {
+      hoverTarget.classList.remove('swap-target');
+      // swap positions
+      const otherId = hoverTarget.id;
+      const tmp = state.layout[id];
+      state.layout[id] = state.layout[otherId];
+      state.layout[otherId] = tmp;
+    } else {
+      // commit move (convert final pixels to percentages)
+      state.layout[id] = {
+        x: (parseFloat(panel.style.left) || 0) / boardW,
+        y: (parseFloat(panel.style.top) || 0) / boardH,
+        w: L0.w / boardW,
+        h: L0.h / boardH,
+      };
+    }
+    applyLayout();
+    resizeCharts(true);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+function startResize(e, id, dir, handle) {
+  e.preventDefault(); e.stopPropagation();
+  const panel = document.getElementById(id);
+  const boardW = window.innerWidth;
+  const boardH = window.innerHeight - 54;
+  
+  // Convert current percentage layout to pixels for resizing calculations
+  const L0 = {
+    x: state.layout[id].x * boardW,
+    y: state.layout[id].y * boardH,
+    w: state.layout[id].w * boardW,
+    h: state.layout[id].h * boardH
+  };
+  
+  const startX = e.clientX, startY = e.clientY;
+  panel.classList.add('resizing');
+  handle.classList.add('active');
+  document.body.classList.add('is-resizing');
+
+  function onMove(ev) {
+    const dx = ev.clientX - startX, dy = ev.clientY - startY;
+    let nx = L0.x, ny = L0.y, nw = L0.w, nh = L0.h;
+    if (dir.includes('e')) nw = L0.w + dx;
+    if (dir.includes('w')) { nw = L0.w - dx; nx = L0.x + dx; }
+    if (dir.includes('s')) nh = L0.h + dy;
+    if (dir.includes('n')) { nh = L0.h - dy; ny = L0.y + dy; }
+    if (nw < 140) { if (dir.includes('w')) nx = L0.x + L0.w - 140; nw = 140; }
+    if (nh < 90)  { if (dir.includes('n')) ny = L0.y + L0.h - 90;  nh = 90;  }
+    nx = Math.max(0, Math.min(boardW - nw, nx));
+    ny = Math.max(0, Math.min(boardH - nh, ny));
+
+    // ── Snap edges being dragged to neighbor lines ──
+    const T = getSnapTargets(id);
+    let xGuide = null, yGuide = null;
+    if (dir.includes('e')) {
+      const s = nearestSnap(nx + nw, T.xs);
+      if (s !== null && s > nx + 140) { nw = s - nx; xGuide = s; }
+    }
+    if (dir.includes('w')) {
+      const s = nearestSnap(nx, T.xs);
+      if (s !== null && s < nx + nw - 140) { nw = nw + (nx - s); nx = s; xGuide = s; }
+    }
+    if (dir.includes('s')) {
+      const s = nearestSnap(ny + nh, T.ys);
+      if (s !== null && s > ny + 90) { nh = s - ny; yGuide = s; }
+    }
+    if (dir.includes('n')) {
+      const s = nearestSnap(ny, T.ys);
+      if (s !== null && s < ny + nh - 90) { nh = nh + (ny - s); ny = s; yGuide = s; }
+    }
+    if (xGuide !== null) showVGuide(xGuide); else document.getElementById('snapGuideV')?.classList.remove('show');
+    if (yGuide !== null) showHGuide(yGuide); else document.getElementById('snapGuideH')?.classList.remove('show');
+
+    panel.style.left = nx + 'px'; panel.style.top = ny + 'px';
+    panel.style.width = nw + 'px'; panel.style.height = nh + 'px';
+    resizeCharts(false);
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    panel.classList.remove('resizing');
+    handle.classList.remove('active');
+    document.body.classList.remove('is-resizing');
+    hideGuides();
+    
+    // commit resize (convert final pixels to percentages)
+    state.layout[id] = {
+      x: (parseFloat(panel.style.left) || 0) / boardW,
+      y: (parseFloat(panel.style.top) || 0) / boardH,
+      w: (parseFloat(panel.style.width) || 140) / boardW,
+      h: (parseFloat(panel.style.height) || 90) / boardH,
+    };
+    resizeCharts(true);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+function resizeCharts(full) {
+  Object.values(charts).forEach(c => { try { c.resize(); } catch(e) {} });
+  if (full) setTimeout(() => { renderProcessChart(); }, 60);
+}
+
+/* ════════════════════════════════════════════
+   EXCEL UPLOAD
+   ════════════════════════════════════════════ */
+document.getElementById('xlsxInput').addEventListener('change', function(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, {type:'array', cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      state.rows = XLSX.utils.sheet_to_json(ws, {raw:false, dateNF:'yyyy-mm-dd hh:mm:ss'});
+      renderAll();
+    } catch(err) { alert('파일을 읽을 수 없습니다: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+});
+
+/* ════════════════════════════════════════════
+   TEMP/HUMID UPLOAD
+   ════════════════════════════════════════════ */
+document.getElementById('tempHumidInput').addEventListener('change', function(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, {type:'array', cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json(ws, {raw:false});
+      
+      if (!rawRows.length) {
+        alert('엑셀 파일에 데이터가 없습니다.');
+        return;
+      }
+
+      const parsed = parseTempHumidExcel(rawRows);
+      if (!parsed || !parsed.length) {
+        alert('온습도 데이터를 찾을 수 없거나 올바르지 않은 형식입니다. (시간 컬럼과 양생실별 온도/습도 컬럼을 확인해 주세요.)');
+        return;
+      }
+
+      state.tempHumidRows = parsed;
+      renderAll();
+      alert('온습도 데이터가 성공적으로 업로드되었습니다!');
+    } catch(err) { alert('파일을 읽을 수 없습니다: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+});
+
+function parseTempHumidExcel(rawRows) {
+  let headerIdx = -1;
+  let timeKey = null;
+  let sensorKey = null;
+  let valKey = null;
+
+  // 1. 업로드된 OLE 레포트 형식 검출 (저장일시, 저장고 센서 유형, 측정값 컬럼 탐색)
+  for (let i = 0; i < rawRows.length; i++) {
+    const row = rawRows[i];
+    const values = Object.values(row).map(v => String(v).replace(/\s+/g, ''));
+    if (values.includes('저장일시') && (values.includes('저장고센서유형') || values.some(v => v.includes('센서유형')))) {
+      headerIdx = i;
+      for (const [k, v] of Object.entries(row)) {
+        const cleanVal = String(v).replace(/\s+/g, '');
+        if (cleanVal === '저장일시') timeKey = k;
+        if (cleanVal.includes('센서유형')) sensorKey = k;
+        if (cleanVal === '측정값') valKey = k;
+      }
+      break;
+    }
+  }
+
+  if (headerIdx !== -1 && timeKey && sensorKey && valKey) {
+    const groups = {};
+    for (let i = headerIdx + 1; i < rawRows.length; i++) {
+      const row = rawRows[i];
+      let tVal = row[timeKey];
+      let sVal = row[sensorKey];
+      let vVal = row[valKey];
+
+      if (!tVal || !sVal || vVal === undefined || vVal === null) continue;
+
+      tVal = String(tVal).trim();
+      sVal = String(sVal).trim();
+      const fVal = parseFloat(vVal);
+      if (isNaN(fVal)) continue;
+
+      // "(6) 양생실, rhum" 형식 파싱
+      const roomMatch = sVal.match(/\((\d+)\)/);
+      if (!roomMatch) continue;
+      const roomNum = parseInt(roomMatch[1]);
+      if (roomNum < 1 || roomNum > 6) continue;
+
+      let type = null;
+      if (sVal.toLowerCase().includes('rhum') || sVal.toLowerCase().includes('습도')) {
+        type = 'humid';
+      } else if (sVal.toLowerCase().includes('rtemp') || sVal.toLowerCase().includes('온도')) {
+        type = 'temp';
+      }
+      if (!type) continue;
+
+      // 다른 행에 쪼개져 있는 온도/습도를 분 단위 기준으로 병합
+      const timeMin = tVal.slice(0, 16); 
+      if (!groups[timeMin]) {
+        groups[timeMin] = { time: timeMin + ':00' };
+      }
+
+      const keyName = `room${roomNum}_${type}`;
+      if (groups[timeMin][keyName] === undefined) {
+        groups[timeMin][keyName] = fVal;
+      } else {
+        // 같은 분의 중복 측정은 평균 처리
+        groups[timeMin][keyName] = Math.round(((groups[timeMin][keyName] + fVal) / 2) * 10) / 10;
+      }
+    }
+
+    return Object.values(groups).sort((a, b) => {
+      const da = new Date(a.time.replace(/-/g, '/'));
+      const db = new Date(b.time.replace(/-/g, '/'));
+      return da - db;
+    });
+  }
+
+  // 2. 범용 포맷 파싱 (기존 폴백 로직)
+  const timeKeys = ['시간', '일시', 'date', 'time', 'datetime', 'timestamp', '등록일시'];
+  const sampleRow = rawRows[0];
+  for (const k of Object.keys(sampleRow)) {
+    if (timeKeys.some(tk => k.toLowerCase().includes(tk))) {
+      timeKey = k;
+      break;
+    }
+  }
+  if (!timeKey) {
+    timeKey = Object.keys(sampleRow)[0];
+  }
+
+  const roomNameKeys = ['양생실', '구분', '호기', '양생실명', 'room', 'chamber'];
+  let roomKey = null;
+  for (const k of Object.keys(sampleRow)) {
+    if (roomNameKeys.some(rk => k.toLowerCase().includes(rk))) {
+      roomKey = k;
+      break;
+    }
+  }
+
+  const tempKeys = ['온도', 'temp', 'temperature', 'temp.'];
+  const humidKeys = ['습도', 'humid', 'humidity', 'humi', 'humi.'];
+  const result = [];
+
+  // Case A: Long Format
+  if (roomKey) {
+    let tempCol = null, humidCol = null;
+    for (const k of Object.keys(sampleRow)) {
+      if (tempKeys.some(tk => k.toLowerCase().includes(tk))) tempCol = k;
+      if (humidKeys.some(hk => k.toLowerCase().includes(hk))) humidCol = k;
+    }
+
+    if (tempCol && humidCol) {
+      const groups = {};
+      rawRows.forEach(r => {
+        let tVal = r[timeKey];
+        if (!tVal) return;
+        tVal = String(tVal).trim();
+        
+        const roomVal = String(r[roomKey]).trim();
+        const roomNumMatch = roomVal.match(/(\d+)/);
+        if (!roomNumMatch) return;
+        const roomNum = parseInt(roomNumMatch[1]);
+        if (roomNum < 1 || roomNum > 6) return;
+
+        const tempVal = parseFloat(r[tempCol]);
+        const humidVal = parseFloat(r[humidCol]);
+
+        if (!groups[tVal]) {
+          groups[tVal] = { time: tVal };
+        }
+        groups[tVal][`room${roomNum}_temp`] = isNaN(tempVal) ? null : tempVal;
+        groups[tVal][`room${roomNum}_humid`] = isNaN(humidVal) ? null : humidVal;
+      });
+      return Object.values(groups).sort((a, b) => new Date(a.time) - new Date(b.time));
+    }
+  }
+
+  // Case B: Wide Format
+  const columns = Object.keys(sampleRow);
+  rawRows.forEach(r => {
+    let tVal = r[timeKey];
+    if (!tVal) return;
+    tVal = String(tVal).trim();
+
+    const entry = { time: tVal };
+    let hasData = false;
+
+    for (let i = 1; i <= 6; i++) {
+      let tCol = columns.find(c => c.includes(String(i)) && tempKeys.some(tk => c.toLowerCase().includes(tk)));
+      let hCol = columns.find(c => c.includes(String(i)) && humidKeys.some(hk => c.toLowerCase().includes(hk)));
+
+      if (tCol) {
+        const val = parseFloat(r[tCol]);
+        entry[`room${i}_temp`] = isNaN(val) ? null : val;
+        hasData = true;
+      }
+      if (hCol) {
+        const val = parseFloat(r[hCol]);
+        entry[`room${i}_humid`] = isNaN(val) ? null : val;
+        hasData = true;
+      }
+    }
+    if (hasData) {
+      result.push(entry);
+    }
+  });
+
+  return result.sort((a, b) => {
+    const da = new Date(a.time.replace(/-/g, '/'));
+    const db = new Date(b.time.replace(/-/g, '/'));
+    return da - db;
+  });
+}
+
+/* ════════════════════════════════════════════
+   LOGO UPLOAD
+   ════════════════════════════════════════════ */
+document.getElementById('logoCenter').addEventListener('click', e => {
+  if (!isAdminMode()) return;                 // 일반 사용자는 무시
+  if (e.target === document.getElementById('logoInput')) return;
+  document.getElementById('logoInput').click();
+});
+document.getElementById('logoInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => { state.logoSrc = ev.target.result; renderLogo(); };
+  r.readAsDataURL(f);
+  e.target.value = '';
+});
+
+/* ════════════════════════════════════════════
+   PROJECT TITLE INLINE EDIT
+   ════════════════════════════════════════════ */
+function editTitle() {
+  const el = document.getElementById('projectTitle');
+  el.textContent = state.projectName;
+  el.contentEditable = 'true'; el.classList.add('editing'); el.focus();
+  const r = document.createRange(); r.selectNodeContents(el);
+  const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+}
+const titleEl = document.getElementById('projectTitle');
+titleEl.addEventListener('click', editTitle);
+titleEl.addEventListener('blur', function() {
+  this.contentEditable = 'false'; this.classList.remove('editing');
+  state.projectName = this.textContent.trim() || state.projectName;
+  this.textContent = state.projectName + (state.orderNo ? ' - ' + state.orderNo : '');
+});
+titleEl.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
+  if (e.key === 'Escape') {
+    this.textContent = state.projectName + (state.orderNo ? ' - ' + state.orderNo : '');
+    this.blur();
+  }
+});
+
+/* ════════════════════════════════════════════
+   SETTINGS
+   ════════════════════════════════════════════ */
+function openSettings() {
+  document.getElementById('sProjectName').value = state.projectName;
+  document.getElementById('sOrderNo').value = state.orderNo || '';
+  document.getElementById('sTotalQty').value = state.totalQty;
+  document.getElementById('sFloorStart').value = state.floorStart;
+  document.getElementById('sFloorEnd').value = state.floorEnd;
+  document.getElementById('sNotes').value = state.notes.join('\n');
+
+  const admin = isAdminMode();
+  const pwdGroup = document.getElementById('sPasswordGroup');
+  if (pwdGroup) {
+    pwdGroup.style.display = admin ? 'block' : 'none';
+  }
+  document.getElementById('sServerPassword').value = localStorage.getItem('dashboard_password') || '';
+
+  document.getElementById('settingsModal').classList.add('open');
+}
+function closeSettings() { document.getElementById('settingsModal').classList.remove('open'); }
+function applySettings() {
+  const name = document.getElementById('sProjectName').value.trim();
+  const orderNo = document.getElementById('sOrderNo').value.trim();
+  const qty = parseInt(document.getElementById('sTotalQty').value) || state.totalQty;
+  const fs = parseInt(document.getElementById('sFloorStart').value);
+  const fe = parseInt(document.getElementById('sFloorEnd').value);
+  const notes = document.getElementById('sNotes').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if (name) state.projectName = name;
+  state.orderNo = orderNo;
+  state.totalQty = qty;
+  if (!isNaN(fs) && fs > 0) state.floorStart = fs;
+  if (!isNaN(fe) && fe > 0) state.floorEnd = fe;
+  if (state.floorEnd < state.floorStart) { const t = state.floorStart; state.floorStart = state.floorEnd; state.floorEnd = t; }
+  state.notes = notes.length ? notes : state.notes;
+
+  if (isAdminMode()) {
+    const pwdVal = document.getElementById('sServerPassword').value.trim();
+    localStorage.setItem('dashboard_password', pwdVal);
+  }
+
+  closeSettings();
+  renderAll();
+}
+
+function getUniqueOrderNos() {
+  const orderNos = new Set();
+  state.rows.forEach(r => {
+    for (const key of ORDER_NO_KEYS) {
+      if (r[key] !== undefined && r[key] !== null) {
+        const val = String(r[key]).trim();
+        if (val) orderNos.add(val);
+      }
+    }
+  });
+  return Array.from(orderNos).sort();
+}
+
+function openOrderNoSelect() {
+  const list = getUniqueOrderNos();
+  const body = document.getElementById('orderNoSelectBody');
+  if (!body) return;
+  
+  if (!list.length) {
+    body.innerHTML = `<div class="modal-empty" style="color:var(--text-sec);">현재 등록된 수주번호 데이터가 없습니다.<br>먼저 엑셀을 업로드하세요.</div>`;
+  } else {
+    body.innerHTML = `
+      <div style="max-height: 320px; overflow-y: auto;">
+        <table class="modal-table">
+          <thead>
+            <tr><th style="padding:8px 10px;">수주번호 목록</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="cursor:pointer; color:var(--accent); font-weight:bold; padding:10px;" onclick="selectOrderNo('')">
+                [전체 데이터 보기] (필터 해제)
+              </td>
+            </tr>
+            ${list.map(no => `
+              <tr>
+                <td style="cursor:pointer; padding:10px; color:var(--text-pri);" onclick="selectOrderNo('${escapeHTML(no)}')">
+                  ${escapeHTML(no)}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+  document.getElementById('orderNoSelectModal').classList.add('open');
+}
+
+function closeOrderNoSelect() {
+  document.getElementById('orderNoSelectModal').classList.remove('open');
+}
+
+function selectOrderNo(no) {
+  document.getElementById('sOrderNo').value = no;
+  closeOrderNoSelect();
+}
+
+/* ════════════════════════════════════════════
+   CLOCK
+   ════════════════════════════════════════════ */
+function updateClock() {
+  const d = new Date();
+  const p = n => String(n).padStart(2,'0');
+  document.getElementById('liveClock').textContent =
+    `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+setInterval(updateClock, 1000); updateClock();
+
+/* ════════════════════════════════════════════
+   DEMO DATA
+   ════════════════════════════════════════════ */
+function generateDemo() {
+  const floors = [3,4,5,6,7];
+  const statuses = [
+    ...Array(127).fill('출하완료'),
+    ...Array(71).fill('포장완료'),
+    ...Array(100).fill('글래이징완료'),
+    ...Array(91).fill('조립완료'),
+    ...Array(36).fill('조립중')
+  ];
+  const today = new Date(); today.setHours(0,0,0,0);
+  const rows = [];
+  const itemsPerFloor = Math.ceil(statuses.length / floors.length);
+  statuses.forEach((st, i) => {
+    const f = floors[Math.min(floors.length-1, Math.floor(i / itemsPerFloor))];
+    const base = new Date(today); base.setDate(today.getDate() - Math.floor(Math.random()*60+3));
+    const aDay = new Date(base); aDay.setDate(base.getDate() + Math.floor(Math.random()*2));
+    const gDay = new Date(aDay); gDay.setDate(aDay.getDate() + Math.floor(Math.random()*3+1));
+    const pDay = new Date(gDay); pDay.setDate(gDay.getDate() + Math.floor(Math.random()*3+1));
+    const sDay = new Date(pDay); sDay.setDate(pDay.getDate() + Math.floor(Math.random()*7+1));
+    rows.push({
+      '품번': `CW-${f}F-${String(i+1).padStart(4,'0')}`,
+      '층': f + 'F',
+      '상태': st,
+      '조립완료시간': st !== '조립중' ? toDS(aDay) : null,
+      '글래이징완료시간': ['포장완료','출하완료','글래이징완료'].includes(st) ? toDS(gDay) : null,
+      '포장완료시간': ['포장완료','출하완료'].includes(st) ? toDS(pDay) : null,
+      '출하일': st === '출하완료' ? toDS(sDay) : null,
+    });
+  });
+  return rows;
+}
+
+/* ════════════════════════════════════════════
+   INIT
+   ════════════════════════════════════════════ */
+(async function init() {
+  // Admin gate: show 💾 서버 저장 + ↻ 배치 buttons + enable logo click only when URL has ?admin=1
+  const admin = isAdminMode();
+  if (admin) {
+    const saveBtn = document.getElementById('serverSaveBtn');
+    if (saveBtn) saveBtn.style.display = '';
+    const resetBtn = document.getElementById('resetLayoutBtn');
+    if (resetBtn) resetBtn.style.display = '';
+    const logoArea = document.getElementById('logoCenter');
+    if (logoArea) {
+      logoArea.classList.add('admin');
+      logoArea.title = '클릭하여 로고 이미지 선택';
+    }
+  }
+
+  // Try server first
+  const loaded = await loadServerData();
+  if (!loaded) {
+    state.rows = generateDemo();
+  }
+  if (!state.layout || !Object.keys(state.layout).length) {
+    state.layout = calcDefaultLayout();
+  }
+  applyStageColors();
+  buildBoard();
+  applyLayout();
+  renderAll();
+  checkAndStartLive(); // 온습도 프록시 실시간 연동 시작
+})();
+
+/* on resize: re-clamp panel positions/sizes & re-render charts */
+let rzTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(rzTimer);
+  rzTimer = setTimeout(() => {
+    applyLayout();
+    resizeCharts(true);
+  }, 120);
+});
+</script>
+</body>
+</html>
