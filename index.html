@@ -1230,6 +1230,57 @@
         flex-direction: column;
       }
     }
+
+    /* ── WORKS UNCONFIGURED GUIDE CARD ─────────── */
+    .works-unconfigured {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 30px 20px;
+      height: 100%;
+      min-height: 200px;
+      color: var(--text-sec);
+    }
+    .unconfigured-icon {
+      font-size: 2.2rem;
+      margin-bottom: 12px;
+      animation: plugPulse 2s infinite ease-in-out;
+    }
+    @keyframes plugPulse {
+      0%, 100% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.08); opacity: 1; }
+    }
+    .unconfigured-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text-pri);
+      margin-bottom: 6px;
+    }
+    .unconfigured-desc {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      line-height: 1.4;
+      max-width: 280px;
+      margin-bottom: 16px;
+    }
+    .unconfigured-link {
+      font-size: 0.7rem;
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: rgba(16, 185, 129, 0.04);
+      transition: all 0.15s;
+    }
+    .unconfigured-link:hover {
+      background: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 2px 8px var(--accent-glow);
+    }
   </style>
 </head>
 
@@ -2278,149 +2329,174 @@ async function fetchNaverWorksData() {
     if (!res.ok) throw new Error('API request failed');
     const data = await res.json();
     
-    // 1. 메일 정보 반영
-    const mailBadge = document.getElementById('mailBadge');
-    if (data.unreadMailCount > 0) {
-      mailBadge.textContent = data.unreadMailCount;
-      mailBadge.style.display = 'inline-block';
-    } else {
-      mailBadge.style.display = 'none';
+    // 💡 만약 API 응답이 Mock 시뮬레이션 데이터이고 관리자 모드가 아니면 연동 대기 안내 가이드 카드를 띄움
+    if (data.isMockMode && !isAdmin()) {
+      showUnconfiguredMessage();
+      return;
     }
     
-    const mailList = document.getElementById('mailList');
-    if (data.mails && data.mails.length > 0) {
-      state.naverWorksMails = data.mails; // 캐싱
-      mailList.innerHTML = data.mails.map((m, idx) => `
-        <li onclick="openWorksDetail('mail', ${idx})" style="cursor: pointer; ${m.isUnread ? 'border-left: 3px solid var(--accent); background: rgba(16,185,129,0.03);' : ''}">
-          <div class="mail-item-left">
-            <span class="mail-subject" style="${m.isUnread ? 'font-weight: 700; color: var(--text-pri);' : 'font-weight: 400; color: var(--text-sec);'}">${esc(m.subject)}</span>
-            <span class="mail-sender">${esc(m.senderName)} (${esc(m.senderEmail)})</span>
-          </div>
-          <span class="mail-date" style="${m.isUnread ? 'font-weight: 600; color: var(--text-pri);' : 'color: var(--text-dim);'}">${esc(m.receivedTime)}</span>
-        </li>
-      `).join('');
-    } else {
-      mailList.innerHTML = '<li class="list-placeholder">새로운 메일이 없습니다.</li>';
-    }
-    
-    // 2. SNS/시스템 알림 반영
-    const snsList = document.getElementById('snsList');
-    if (data.notifications && data.notifications.length > 0) {
-      state.naverWorksNotifications = data.notifications; // 캐싱
-      snsList.innerHTML = data.notifications.map((n, idx) => `
-        <li onclick="openWorksDetail('sns', ${idx})" style="cursor: pointer;">
-          <div class="sns-item">
-            <div class="sns-meta">
-              <span class="sns-type ${n.level === 'error' ? 'error' : ''}">${esc(n.source)}</span>
-              <span class="sns-date">${esc(n.time)}</span>
-            </div>
-            <div class="sns-content">${esc(n.message)}</div>
-          </div>
-        </li>
-      `).join('');
-    } else {
-      snsList.innerHTML = '<li class="list-placeholder">시스템 경보 및 알림 내역이 없습니다.</li>';
-    }
+    // 실제 연동 완료 시 또는 관리자 모드인 경우 데이터 목록 렌더링
+    renderRealNaverWorksData(data);
     
   } catch (err) {
-    // API 미완성이거나 로딩 실패 시 Mock 데이터 노출 (연동 전 프리뷰 제공)
-    showMockNaverWorksData();
+    if (!isAdmin()) {
+      showUnconfiguredMessage();
+    } else {
+      showMockNaverWorksData();
+    }
+  }
+}
+
+function showUnconfiguredMessage() {
+  const mailBadge = document.getElementById('mailBadge');
+  mailBadge.style.display = 'none';
+  
+  // 메일 패널의 내용부를 '연동 설정 필요' 안내문으로 덮어씀
+  const mailPanelBody = document.querySelector('.mail-panel .panel-body');
+  mailPanelBody.innerHTML = `
+    <div class="works-unconfigured">
+      <div class="unconfigured-icon">✉️</div>
+      <div class="unconfigured-title">메일함 연동 대기 중</div>
+      <div class="unconfigured-desc">사내 네이버웍스 메일과 연동하려면 naver_works_api.php 파일 상단에 API 인증키 등록이 필요합니다.</div>
+      <a href="https://developers.worksmobile.com/" target="_blank" rel="noopener" class="unconfigured-link">인증키 발급 안내 ↗</a>
+    </div>
+  `;
+  
+  // SNS/메신저 패널의 내용부를 '연동 설정 필요' 안내문으로 덮어씀
+  const snsPanelBody = document.querySelector('.sns-panel .panel-body');
+  snsPanelBody.innerHTML = `
+    <div class="works-unconfigured">
+      <div class="unconfigured-icon">💬</div>
+      <div class="unconfigured-title">알림 봇 연동 대기 중</div>
+      <div class="unconfigured-desc">양생실 경보 및 실적 저장 메시지를 네이버웍스 메신저로 받으려면 API 키 등록이 필요합니다.</div>
+      <a href="https://developers.worksmobile.com/" target="_blank" rel="noopener" class="unconfigured-link">메신저 API 연동 가이드 ↗</a>
+    </div>
+  `;
+}
+
+function renderRealNaverWorksData(data) {
+  // 원래 panel-body 내부의 ul 리스트 구조 복원
+  const mailPanelBody = document.querySelector('.mail-panel .panel-body');
+  mailPanelBody.innerHTML = `<ul id="mailList" class="works-list"><li class="list-placeholder">메일 목록을 불러오는 중입니다...</li></ul>`;
+  
+  const snsPanelBody = document.querySelector('.sns-panel .panel-body');
+  snsPanelBody.innerHTML = `<ul id="snsList" class="works-list"><li class="list-placeholder">시스템 경보 및 알림 내역이 없습니다.</li></ul>`;
+
+  // 1. 메일 정보 반영
+  const mailBadge = document.getElementById('mailBadge');
+  if (data.unreadMailCount > 0) {
+    mailBadge.textContent = data.unreadMailCount;
+    mailBadge.style.display = 'inline-block';
+  } else {
+    mailBadge.style.display = 'none';
+  }
+  
+  const mailList = document.getElementById('mailList');
+  if (data.mails && data.mails.length > 0) {
+    state.naverWorksMails = data.mails; // 캐싱
+    mailList.innerHTML = data.mails.map((m, idx) => `
+      <li onclick="openWorksDetail('mail', ${idx})" style="cursor: pointer; ${m.isUnread ? 'border-left: 3px solid var(--accent); background: rgba(16,185,129,0.03);' : ''}">
+        <div class="mail-item-left">
+          <span class="mail-subject" style="${m.isUnread ? 'font-weight: 700; color: var(--text-pri);' : 'font-weight: 400; color: var(--text-sec);'}">${esc(m.subject)}</span>
+          <span class="mail-sender">${esc(m.senderName)} (${esc(m.senderEmail)})</span>
+        </div>
+        <span class="mail-date" style="${m.isUnread ? 'font-weight: 600; color: var(--text-pri);' : 'color: var(--text-dim);'}">${esc(m.receivedTime)}</span>
+      </li>
+    `).join('');
+  } else {
+    mailList.innerHTML = '<li class="list-placeholder">새로운 메일이 없습니다.</li>';
+  }
+  
+  // 2. SNS/시스템 알림 반영
+  const snsList = document.getElementById('snsList');
+  if (data.notifications && data.notifications.length > 0) {
+    state.naverWorksNotifications = data.notifications; // 캐싱
+    snsList.innerHTML = data.notifications.map((n, idx) => `
+      <li onclick="openWorksDetail('sns', ${idx})" style="cursor: pointer;">
+        <div class="sns-item">
+          <div class="sns-meta">
+            <span class="sns-type ${n.level === 'error' ? 'error' : ''}">${esc(n.source)}</span>
+            <span class="sns-date">${esc(n.time)}</span>
+          </div>
+          <div class="sns-content">${esc(n.message)}</div>
+        </div>
+      </li>
+    `).join('');
+  } else {
+    snsList.innerHTML = '<li class="list-placeholder">시스템 경보 및 알림 내역이 없습니다.</li>';
   }
 }
 
 // API 미등록 혹은 에러 시 테스트를 위해 보여줄 Mock 데이터
 function showMockNaverWorksData() {
-  const mailBadge = document.getElementById('mailBadge');
-  mailBadge.textContent = '3';
-  mailBadge.style.display = 'inline-block';
+  const mockData = {
+    unreadMailCount: 3,
+    mails: [
+      {
+        subject: "[알림] 양평동 현장 자재 조립 단계 시작 완료의 건",
+        senderName: "홍길동 차장",
+        senderEmail: "kdhong@ahama.com",
+        receivedTime: "10:42",
+        body: "안녕하세요. 관리팀 홍길동 차장입니다.\n\n양평동 현장의 조립 단계 자재 준비 및 공정 개시가 금일 10시 30분을 기점으로 정상 시작 완료되었습니다.\n\n실시간 생산현황 대시보드를 통해 현장 실적을 확인하실 수 있으니 많은 참고 바랍니다.\n\n감사합니다.",
+        isUnread: true,
+        link: "https://mail.worksmobile.com/"
+      },
+      {
+        subject: "6월 생산실적 현황 보고서 송부 및 검토 요청",
+        senderName: "김철수 부장",
+        senderEmail: "cskim@ahama.com",
+        receivedTime: "09:15",
+        body: "대시보드 운영담당자님께,\n\n지난 6월 한 달 동안 집계된 사내 생산실적 종합 주간/월간 리포트 초안을 작성하여 공유해 드립니다.\n\n기존 대시보드 저장 기능 테스트 데이터를 토대로 도출한 결과입니다.\n수정 사항이 있다면 오늘 오후 6시 전까지 피드백 회신 바랍니다.\n\n수고하십시오.\n김철수 드림.",
+        isUnread: true,
+        link: "https://mail.worksmobile.com/"
+      },
+      {
+        subject: "양생실 온습도 실시간 모니터링 주간 리포트",
+        senderName: "시스템 알림봇",
+        senderEmail: "bot@ahama.com",
+        receivedTime: "어제",
+        body: "본 메일은 시스템 자동 정기 보고서입니다.\n\n지난 주(06.28~07.04) 동안 기록된 총 6개 양생실의 내부 온습도 실시간 데이터 집계 통계입니다.\n\n- 유효 인증 유지 비율: 99.8%\n- 최대 측정 온도: 23.1℃ (3호실)\n- 최소 측정 습도: 58% (5호실)\n\n상세 트렌드 그래프는 대시보드 사이트의 온습도 실시간 모니터링 페이지에서 조회하실 수 있습니다.",
+        isUnread: true,
+        link: "https://mail.worksmobile.com/"
+      },
+      {
+        subject: "[협조] 차주 자재 입고 일정 확인의 건",
+        senderName: "이영희 과장",
+        senderEmail: "yhlee@ahama.com",
+        receivedTime: "어제",
+        body: "안녕하세요. 이영희 과장입니다.\n\n차주 월요일부터 양평동 현장으로 조립 부품 및 가공 판재가 순차 입고될 예정입니다.\n\n현장 하역 공간 확보 및 크레인 장비 일정을 미리 확인하시어 부품 입고 시 혼선이 없도록 협조 요청 드립니다.\n\n세부 입고 수량 명세서는 첨부된 엑셀 리스트를 참조하십시오.",
+        isUnread: false,
+        link: "https://mail.worksmobile.com/"
+      },
+      {
+        subject: "사내 통합 모니터링 시스템 로그인 비밀번호 변경 안내",
+        senderName: "IT지원팀",
+        senderEmail: "it@ahama.com",
+        receivedTime: "07.02",
+        body: "보안 정책에 따라 통합 모니터링 대시보드 및 포털 관리자 패스워드를 정기적으로 변경해 주시기 바랍니다.\n\n현재 설정된 기본 비밀번호는 주기적으로 만료 처리될 수 있으며, 새로운 비밀번호 설정 시 영문 대소문자, 숫자, 특수문자를 혼용하여 설정하십시오.\n\n관련 문의는 내선 114번으로 연락 바랍니다.",
+        isUnread: false,
+        link: "https://mail.worksmobile.com/"
+      }
+    ],
+    notifications: [
+      {
+        source: "⚠️ 양생실 경보",
+        level: "error",
+        time: "10:50",
+        message: "양생실 3호실 온도가 유효 인증 범위(20℃~22℃)를 초과하여 24.5℃로 상승했습니다. 즉시 확인 바랍니다.\n\n[세부 상태]\n- 3호실 현재 온도: 24.5℃\n- 습도: 62%\n- 알림 대상: 시설물 비상 담당자 전원 및 관리소장"
+      },
+      {
+        source: "✅ 실적 저장",
+        level: "info",
+        time: "09:30",
+        message: "양평동 현장 20251113-1의 금일 오전 조립 공정 생산 실적 데이터 저장이 완료되었습니다.\n\n- 조립 완료 수량: 45 개\n- 불량 발생 수량: 0 개\n- 작업 작업자: 조립 A팀\n- 데이터 저장 경로: Synology NAS /volume1/web/dashboard/data_20251113-1.json"
+      }
+    ]
+  };
   
-  state.naverWorksMails = [
-    {
-      subject: "[알림] 양평동 현장 자재 조립 단계 시작 완료의 건",
-      senderName: "홍길동 차장",
-      senderEmail: "kdhong@ahama.com",
-      receivedTime: "10:42",
-      body: "안녕하세요. 관리팀 홍길동 차장입니다.\n\n양평동 현장의 조립 단계 자재 준비 및 공정 개시가 금일 10시 30분을 기점으로 정상 시작 완료되었습니다.\n\n실시간 생산현황 대시보드를 통해 현장 실적을 확인하실 수 있으니 많은 참고 바랍니다.\n\n감사합니다.",
-      isUnread: true,
-      link: "https://mail.worksmobile.com/"
-    },
-    {
-      subject: "6월 생산실적 현황 보고서 송부 및 검토 요청",
-      senderName: "김철수 부장",
-      senderEmail: "cskim@ahama.com",
-      receivedTime: "09:15",
-      body: "대시보드 운영담당자님께,\n\n지난 6월 한 달 동안 집계된 사내 생산실적 종합 주간/월간 리포트 초안을 작성하여 공유해 드립니다.\n\n기존 대시보드 저장 기능 테스트 데이터를 토대로 도출한 결과입니다.\n수정 사항이 있다면 오늘 오후 6시 전까지 피드백 회신 바랍니다.\n\n수고하십시오.\n김철수 드림.",
-      isUnread: true,
-      link: "https://mail.worksmobile.com/"
-    },
-    {
-      subject: "양생실 온습도 실시간 모니터링 주간 리포트",
-      senderName: "시스템 알림봇",
-      senderEmail: "bot@ahama.com",
-      receivedTime: "어제",
-      body: "본 메일은 시스템 자동 정기 보고서입니다.\n\n지난 주(06.28~07.04) 동안 기록된 총 6개 양생실의 내부 온습도 실시간 데이터 집계 통계입니다.\n\n- 유효 인증 유지 비율: 99.8%\n- 최대 측정 온도: 23.1℃ (3호실)\n- 최소 측정 습도: 58% (5호실)\n\n상세 트렌드 그래프는 대시보드 사이트의 온습도 실시간 모니터링 페이지에서 조회하실 수 있습니다.",
-      isUnread: true,
-      link: "https://mail.worksmobile.com/"
-    },
-    {
-      subject: "[협조] 차주 자재 입고 일정 확인의 건",
-      senderName: "이영희 과장",
-      senderEmail: "yhlee@ahama.com",
-      receivedTime: "어제",
-      body: "안녕하세요. 이영희 과장입니다.\n\n차주 월요일부터 양평동 현장으로 조립 부품 및 가공 판재가 순차 입고될 예정입니다.\n\n현장 하역 공간 확보 및 크레인 장비 일정을 미리 확인하시어 부품 입고 시 혼선이 없도록 협조 요청 드립니다.\n\n세부 입고 수량 명세서는 첨부된 엑셀 리스트를 참조하십시오.",
-      isUnread: false,
-      link: "https://mail.worksmobile.com/"
-    },
-    {
-      subject: "사내 통합 모니터링 시스템 로그인 비밀번호 변경 안내",
-      senderName: "IT지원팀",
-      senderEmail: "it@ahama.com",
-      receivedTime: "07.02",
-      body: "보안 정책에 따라 통합 모니터링 대시보드 및 포털 관리자 패스워드를 정기적으로 변경해 주시기 바랍니다.\n\n현재 설정된 기본 비밀번호는 주기적으로 만료 처리될 수 있으며, 새로운 비밀번호 설정 시 영문 대소문자, 숫자, 특수문자를 혼용하여 설정하십시오.\n\n관련 문의는 내선 114번으로 연락 바랍니다.",
-      isUnread: false,
-      link: "https://mail.worksmobile.com/"
-    }
-  ];
-  
-  const mailList = document.getElementById('mailList');
-  mailList.innerHTML = state.naverWorksMails.map((m, idx) => `
-    <li onclick="openWorksDetail('mail', ${idx})" style="cursor: pointer; ${m.isUnread ? 'border-left: 3px solid var(--accent); background: rgba(16,185,129,0.03);' : ''}">
-      <div class="mail-item-left">
-        <span class="mail-subject" style="${m.isUnread ? 'font-weight: 700; color: var(--text-pri);' : 'font-weight: 400; color: var(--text-sec);'}">${esc(m.subject)}</span>
-        <span class="mail-sender">${esc(m.senderName)} (${esc(m.senderEmail)})</span>
-      </div>
-      <span class="mail-date" style="${m.isUnread ? 'font-weight: 600; color: var(--text-pri);' : 'color: var(--text-dim);'}">${esc(m.receivedTime)}</span>
-    </li>
-  `).join('');
-  
-  state.naverWorksNotifications = [
-    {
-      source: "⚠️ 양생실 경보",
-      level: "error",
-      time: "10:50",
-      message: "양생실 3호실 온도가 유효 인증 범위(20℃~22℃)를 초과하여 24.5℃로 상승했습니다. 즉시 확인 바랍니다.\n\n[세부 상태]\n- 3호실 현재 온도: 24.5℃\n- 습도: 62%\n- 알림 대상: 시설물 비상 담당자 전원 및 관리소장"
-    },
-    {
-      source: "✅ 실적 저장",
-      level: "info",
-      time: "09:30",
-      message: "양평동 현장 20251113-1의 금일 오전 조립 공정 생산 실적 데이터 저장이 완료되었습니다.\n\n- 조립 완료 수량: 45 개\n- 불량 발생 수량: 0 개\n- 작업 작업자: 조립 A팀\n- 데이터 저장 경로: Synology NAS /volume1/web/dashboard/data_20251113-1.json"
-    }
-  ];
-  
-  const snsList = document.getElementById('snsList');
-  snsList.innerHTML = state.naverWorksNotifications.map((n, idx) => `
-    <li onclick="openWorksDetail('sns', ${idx})" style="cursor: pointer;">
-      <div class="sns-item">
-        <div class="sns-meta">
-          <span class="sns-type ${n.level === 'error' ? 'error' : ''}">${esc(n.source)}</span>
-          <span class="sns-date">${esc(n.time)}</span>
-        </div>
-        <div class="sns-content">${esc(n.message)}</div>
-      </div>
-    </li>
-  `).join('');
+  renderRealNaverWorksData(mockData);
 }
+
 
 // Server load/save
 async function loadPortalData() {

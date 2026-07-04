@@ -47,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             // 디버그 및 프론트엔드 정합성 테스트용 Mock 데이터 제공
             $mockResponse = [
                 "success" => true,
+                "isMockMode" => true,
                 "unreadMailCount" => 3,
                 "mails" => [
                     [
@@ -191,6 +192,7 @@ function getNaverWorksSummary() {
 
     return [
         "success" => true,
+        "isMockMode" => false,
         "unreadMailCount" => $unreadCount,
         "mails" => $mails,
         "notifications" => getSystemNotificationsLocal() // 로컬 서버 시스템 경보 로그 반환
