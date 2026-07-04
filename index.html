@@ -2291,12 +2291,12 @@ async function fetchNaverWorksData() {
     if (data.mails && data.mails.length > 0) {
       state.naverWorksMails = data.mails; // 캐싱
       mailList.innerHTML = data.mails.map((m, idx) => `
-        <li onclick="openWorksDetail('mail', ${idx})" style="cursor: pointer;">
+        <li onclick="openWorksDetail('mail', ${idx})" style="cursor: pointer; ${m.isUnread ? 'border-left: 3px solid var(--accent); background: rgba(16,185,129,0.03);' : ''}">
           <div class="mail-item-left">
-            <span class="mail-subject">${esc(m.subject)}</span>
+            <span class="mail-subject" style="${m.isUnread ? 'font-weight: 700; color: var(--text-pri);' : 'font-weight: 400; color: var(--text-sec);'}">${esc(m.subject)}</span>
             <span class="mail-sender">${esc(m.senderName)} (${esc(m.senderEmail)})</span>
           </div>
-          <span class="mail-date">${esc(m.receivedTime)}</span>
+          <span class="mail-date" style="${m.isUnread ? 'font-weight: 600; color: var(--text-pri);' : 'color: var(--text-dim);'}">${esc(m.receivedTime)}</span>
         </li>
       `).join('');
     } else {
@@ -2341,6 +2341,7 @@ function showMockNaverWorksData() {
       senderEmail: "kdhong@ahama.com",
       receivedTime: "10:42",
       body: "안녕하세요. 관리팀 홍길동 차장입니다.\n\n양평동 현장의 조립 단계 자재 준비 및 공정 개시가 금일 10시 30분을 기점으로 정상 시작 완료되었습니다.\n\n실시간 생산현황 대시보드를 통해 현장 실적을 확인하실 수 있으니 많은 참고 바랍니다.\n\n감사합니다.",
+      isUnread: true,
       link: "https://mail.worksmobile.com/"
     },
     {
@@ -2349,6 +2350,7 @@ function showMockNaverWorksData() {
       senderEmail: "cskim@ahama.com",
       receivedTime: "09:15",
       body: "대시보드 운영담당자님께,\n\n지난 6월 한 달 동안 집계된 사내 생산실적 종합 주간/월간 리포트 초안을 작성하여 공유해 드립니다.\n\n기존 대시보드 저장 기능 테스트 데이터를 토대로 도출한 결과입니다.\n수정 사항이 있다면 오늘 오후 6시 전까지 피드백 회신 바랍니다.\n\n수고하십시오.\n김철수 드림.",
+      isUnread: true,
       link: "https://mail.worksmobile.com/"
     },
     {
@@ -2357,18 +2359,37 @@ function showMockNaverWorksData() {
       senderEmail: "bot@ahama.com",
       receivedTime: "어제",
       body: "본 메일은 시스템 자동 정기 보고서입니다.\n\n지난 주(06.28~07.04) 동안 기록된 총 6개 양생실의 내부 온습도 실시간 데이터 집계 통계입니다.\n\n- 유효 인증 유지 비율: 99.8%\n- 최대 측정 온도: 23.1℃ (3호실)\n- 최소 측정 습도: 58% (5호실)\n\n상세 트렌드 그래프는 대시보드 사이트의 온습도 실시간 모니터링 페이지에서 조회하실 수 있습니다.",
+      isUnread: true,
+      link: "https://mail.worksmobile.com/"
+    },
+    {
+      subject: "[협조] 차주 자재 입고 일정 확인의 건",
+      senderName: "이영희 과장",
+      senderEmail: "yhlee@ahama.com",
+      receivedTime: "어제",
+      body: "안녕하세요. 이영희 과장입니다.\n\n차주 월요일부터 양평동 현장으로 조립 부품 및 가공 판재가 순차 입고될 예정입니다.\n\n현장 하역 공간 확보 및 크레인 장비 일정을 미리 확인하시어 부품 입고 시 혼선이 없도록 협조 요청 드립니다.\n\n세부 입고 수량 명세서는 첨부된 엑셀 리스트를 참조하십시오.",
+      isUnread: false,
+      link: "https://mail.worksmobile.com/"
+    },
+    {
+      subject: "사내 통합 모니터링 시스템 로그인 비밀번호 변경 안내",
+      senderName: "IT지원팀",
+      senderEmail: "it@ahama.com",
+      receivedTime: "07.02",
+      body: "보안 정책에 따라 통합 모니터링 대시보드 및 포털 관리자 패스워드를 정기적으로 변경해 주시기 바랍니다.\n\n현재 설정된 기본 비밀번호는 주기적으로 만료 처리될 수 있으며, 새로운 비밀번호 설정 시 영문 대소문자, 숫자, 특수문자를 혼용하여 설정하십시오.\n\n관련 문의는 내선 114번으로 연락 바랍니다.",
+      isUnread: false,
       link: "https://mail.worksmobile.com/"
     }
   ];
   
   const mailList = document.getElementById('mailList');
   mailList.innerHTML = state.naverWorksMails.map((m, idx) => `
-    <li onclick="openWorksDetail('mail', ${idx})" style="cursor: pointer;">
+    <li onclick="openWorksDetail('mail', ${idx})" style="cursor: pointer; ${m.isUnread ? 'border-left: 3px solid var(--accent); background: rgba(16,185,129,0.03);' : ''}">
       <div class="mail-item-left">
-        <span class="mail-subject">${esc(m.subject)}</span>
+        <span class="mail-subject" style="${m.isUnread ? 'font-weight: 700; color: var(--text-pri);' : 'font-weight: 400; color: var(--text-sec);'}">${esc(m.subject)}</span>
         <span class="mail-sender">${esc(m.senderName)} (${esc(m.senderEmail)})</span>
       </div>
-      <span class="mail-date">${esc(m.receivedTime)}</span>
+      <span class="mail-date" style="${m.isUnread ? 'font-weight: 600; color: var(--text-pri);' : 'color: var(--text-dim);'}">${esc(m.receivedTime)}</span>
     </li>
   `).join('');
   
@@ -2401,177 +2422,67 @@ function showMockNaverWorksData() {
   `).join('');
 }
 
-    // Server load/save
-    async function loadPortalData() {
-      try {
-        const res = await fetch('http://218.158.57.134:8080/dashboard/data_portal_index.json?_=' + Date.now(), { cache: 'no-cache' }); if (!res.ok) return false;
-        const d = await res.json();
-        if (d.portalTitle) state.portalTitle = d.portalTitle; if (d.portalSubtitle) state.portalSubtitle = d.portalSubtitle;
-        if (d.logoSrc) { state.logoSrc = d.logoSrc; triggerLogoUploadVisuals(); }
-        if (d.logoLayout) state.logoLayout = d.logoLayout;
-        if (d.addBtnLayout) state.addBtnLayout = d.addBtnLayout;
-        if (d.viewMode) state.viewMode = d.viewMode;
-        if (d.cards) {
-          state.cards = d.cards;
-
-        }
-        if (d.layout) {
-          // 기존 data.json이 px기준 높이(h)일수도 있으니 호환성 검사
-          let isOldFormat = false;
-          Object.values(d.layout).forEach(l => { if (l.w > 1 || l.h > 1 || l.y > 2) isOldFormat = true; });
-          if (!isOldFormat) state.layout = d.layout;
-        }
-        return true;
-      } catch (e) { return false; }
+// Server load/save
+async function loadPortalData() {
+  try {
+    const res = await fetch('dashboard/data_portal_index.json?_=' + Date.now(), { cache: 'no-cache' }); if (!res.ok) return false;
+    const d = await res.json();
+    if (d.portalTitle) state.portalTitle = d.portalTitle; if (d.portalSubtitle) state.portalSubtitle = d.portalSubtitle;
+    if (d.logoSrc) { state.logoSrc = d.logoSrc; triggerLogoUploadVisuals(); }
+    if (d.logoLayout) state.logoLayout = d.logoLayout;
+    if (d.addBtnLayout) state.addBtnLayout = d.addBtnLayout;
+    if (d.viewMode) state.viewMode = d.viewMode;
+    if (d.cards) {
+      state.cards = d.cards;
     }
-
-    async function savePortalData() {
-      state.portalTitle = document.getElementById('portalTitle').textContent.trim();
-      state.portalSubtitle = document.getElementById('portalSubtitle').textContent.trim();
-      const payload = { schema: 'portal.v3', savedAt: new Date().toISOString(), portalTitle: state.portalTitle, portalSubtitle: state.portalSubtitle, logoSrc: state.logoSrc, logoLayout: state.logoLayout, addBtnLayout: state.addBtnLayout, cards: state.cards, layout: state.layout, viewMode: state.viewMode };
-      const pwd = localStorage.getItem('dashboard_password') || '1234';
-      try {
-        const res = await fetch('http://218.158.57.134:8080/dashboard/save_data.php', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Dashboard-Password': pwd, 'X-Dashboard-Project': 'portal_index', 'X-Dashboard-Mode': 'main' }, body: JSON.stringify(payload, null, 2) });
-        const d = await res.json();
-        if (d.success) showToast('✓ 포털이 저장되었습니다.'); else showToast('⚠ 저장 실패: ' + d.message);
-      } catch (e) { showToast('⚠ 서버 연결 실패'); }
+    if (d.layout) {
+      // 기존 data.json이 px기준 높이(h)일수도 있으니 호환성 검사
+      let isOldFormat = false;
+      Object.values(d.layout).forEach(l => { if (l.w > 1 || l.h > 1 || l.y > 2) isOldFormat = true; });
+      if (!isOldFormat) state.layout = d.layout;
     }
+    return true;
+  } catch (e) { return false; }
+}
 
-    let rzTimer; window.addEventListener('resize', () => { clearTimeout(rzTimer); rzTimer = setTimeout(applyLayout, 100); });
+async function savePortalData() {
+  state.portalTitle = document.getElementById('portalTitle').textContent.trim();
+  state.portalSubtitle = document.getElementById('portalSubtitle').textContent.trim();
+  const payload = { schema: 'portal.v3', savedAt: new Date().toISOString(), portalTitle: state.portalTitle, portalSubtitle: state.portalSubtitle, logoSrc: state.logoSrc, logoLayout: state.logoLayout, addBtnLayout: state.addBtnLayout, cards: state.cards, layout: state.layout, viewMode: state.viewMode };
+  const pwd = localStorage.getItem('dashboard_password') || '1234';
+  try {
+    const res = await fetch('dashboard/save_data.php', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Dashboard-Password': pwd, 'X-Dashboard-Project': 'portal_index', 'X-Dashboard-Mode': 'main' }, body: JSON.stringify(payload, null, 2) });
+    const d = await res.json();
+    if (d.success) showToast('✓ 포털이 저장되었습니다.'); else showToast('⚠ 저장 실패: ' + d.message);
+  } catch (e) { showToast('⚠ 서버 연결 실패'); }
+}
 
-    function triggerLogoUploadVisuals() {
-      const img = document.getElementById('portalLogoImg');
-      const ph = document.getElementById('portalLogoPlaceholder');
-      if (state.logoSrc && img) { img.src = state.logoSrc; img.style.display = 'block'; }
-      if (state.logoSrc && ph) { ph.style.display = 'none'; }
-    }
+let rzTimer; window.addEventListener('resize', () => { clearTimeout(rzTimer); rzTimer = setTimeout(applyLayout, 100); });
 
+function triggerLogoUploadVisuals() {
+  const img = document.getElementById('portalLogoImg');
+  const ph = document.getElementById('portalLogoPlaceholder');
+  if (state.logoSrc && img) { img.src = state.logoSrc; img.style.display = 'block'; }
+  if (state.logoSrc && ph) { ph.style.display = 'none'; }
+}
 
-    // 네이버웍스 API 데이터를 가져와 화면에 렌더링하는 함수
-    async function fetchNaverWorksData() {
-      try {
-        const res = await fetch('http://218.158.57.134:8080/dashboard/naver_works_api.php?action=summary', { cache: 'no-cache' });
-        if (!res.ok) throw new Error('API request failed');
-        const data = await res.json();
+(async function init() {
+  await loadPortalData();
+  document.getElementById('portalTitle').textContent = state.portalTitle;
+  document.getElementById('portalSubtitle').textContent = state.portalSubtitle;
+  applyAdminMode();
+  updateViewModeUI();
+  if (!state.layout || !Object.keys(state.layout).length) state.layout = calcDefaultLayout();
+  if (!state.logoLayout || !Object.keys(state.logoLayout).length) state.logoLayout = calcDefaultLogoLayout();
+  if (!state.addBtnLayout || !Object.keys(state.addBtnLayout).length) state.addBtnLayout = calcDefaultAddBtnLayout();
+  triggerLogoUploadVisuals();
+  buildBoard();
 
-        // 1. 메일 정보 반영
-        const mailBadge = document.getElementById('mailBadge');
-        if (data.unreadMailCount > 0) {
-          mailBadge.textContent = data.unreadMailCount;
-          mailBadge.style.display = 'inline-block';
-        } else {
-          mailBadge.style.display = 'none';
-        }
+  // 네이버웍스 API 폴링 구동
+  fetchNaverWorksData();
+  setInterval(fetchNaverWorksData, 30000); // 30초마다 갱신
+})();
 
-        const mailList = document.getElementById('mailList');
-        if (data.mails && data.mails.length > 0) {
-          mailList.innerHTML = data.mails.map(m => `
-        <li>
-          <div class="mail-item-left">
-            <a class="mail-subject" href="${esc(m.link)}" target="_blank" rel="noopener">${esc(m.subject)}</a>
-            <span class="mail-sender">${esc(m.senderName)} (${esc(m.senderEmail)})</span>
-          </div>
-          <span class="mail-date">${esc(m.receivedTime)}</span>
-        </li>
-      `).join('');
-        } else {
-          mailList.innerHTML = '<li class="list-placeholder">새로운 메일이 없습니다.</li>';
-        }
-
-        // 2. SNS/시스템 알림 반영
-        const snsList = document.getElementById('snsList');
-        if (data.notifications && data.notifications.length > 0) {
-          snsList.innerHTML = data.notifications.map(n => `
-        <li>
-          <div class="sns-item">
-            <div class="sns-meta">
-              <span class="sns-type ${n.level === 'error' ? 'error' : ''}">${esc(n.source)}</span>
-              <span class="sns-date">${esc(n.time)}</span>
-            </div>
-            <div class="sns-content">${esc(n.message)}</div>
-          </div>
-        </li>
-      `).join('');
-        } else {
-          snsList.innerHTML = '<li class="list-placeholder">시스템 경보 및 알림 내역이 없습니다.</li>';
-        }
-
-      } catch (err) {
-        // API 미완성이거나 로딩 실패 시 Mock 데이터 노출 (연동 전 프리뷰 제공)
-        showMockNaverWorksData();
-      }
-    }
-
-    // API 미등록 혹은 에러 시 테스트를 위해 보여줄 Mock 데이터
-    function showMockNaverWorksData() {
-      const mailBadge = document.getElementById('mailBadge');
-      mailBadge.textContent = '3';
-      mailBadge.style.display = 'inline-block';
-
-      const mailList = document.getElementById('mailList');
-      mailList.innerHTML = `
-    <li>
-      <div class="mail-item-left">
-        <a class="mail-subject" href="https://mail.worksmobile.com/" target="_blank" rel="noopener">[알림] 양평동 현장 자재 조립 단계 시작 완료의 건</a>
-        <span class="mail-sender">홍길동 차장 (kdhong@ahama.com)</span>
-      </div>
-      <span class="mail-date">10:42</span>
-    </li>
-    <li>
-      <div class="mail-item-left">
-        <a class="mail-subject" href="https://mail.worksmobile.com/" target="_blank" rel="noopener">6월 생산실적 현황 보고서 송부 및 검토 요청</a>
-        <span class="mail-sender">김철수 부장 (cskim@ahama.com)</span>
-      </div>
-      <span class="mail-date">09:15</span>
-    </li>
-    <li>
-      <div class="mail-item-left">
-        <a class="mail-subject" href="https://mail.worksmobile.com/" target="_blank" rel="noopener">양생실 온습도 실시간 모니터링 주간 리포트</a>
-        <span class="mail-sender">시스템 알림봇 (bot@ahama.com)</span>
-      </div>
-      <span class="mail-date">어제</span>
-    </li>
-  `;
-
-      const snsList = document.getElementById('snsList');
-      snsList.innerHTML = `
-    <li>
-      <div class="sns-item">
-        <div class="sns-meta">
-          <span class="sns-type error">⚠️ 양생실 경보</span>
-          <span class="sns-date">10:50</span>
-        </div>
-        <div class="sns-content">양생실 3호실 온도가 유효 인증 범위(20℃~22℃)를 초과하여 24.5℃로 상승했습니다. 즉시 확인 바랍니다.</div>
-      </div>
-    </li>
-    <li>
-      <div class="sns-item">
-        <div class="sns-meta">
-          <span class="sns-type">✅ 실적 저장</span>
-          <span class="sns-date">09:30</span>
-        </div>
-        <div class="sns-content">양평동 현장 20251113-1의 금일 오전 조립 공정 생산 실적 데이터 저장이 완료되었습니다.</div>
-      </div>
-    </li>
-  `;
-    }
-
-    (async function init() {
-      await loadPortalData();
-      document.getElementById('portalTitle').textContent = state.portalTitle;
-      document.getElementById('portalSubtitle').textContent = state.portalSubtitle;
-      applyAdminMode();
-      updateViewModeUI();
-      if (!state.layout || !Object.keys(state.layout).length) state.layout = calcDefaultLayout();
-      if (!state.logoLayout || !Object.keys(state.logoLayout).length) state.logoLayout = calcDefaultLogoLayout();
-      if (!state.addBtnLayout || !Object.keys(state.addBtnLayout).length) state.addBtnLayout = calcDefaultAddBtnLayout();
-      triggerLogoUploadVisuals();
-      buildBoard();
-
-      // 네이버웍스 API 폴링 구동
-      fetchNaverWorksData();
-      setInterval(fetchNaverWorksData, 30000); // 30초마다 갱신
-    })();
   </script>
 </body>
 
