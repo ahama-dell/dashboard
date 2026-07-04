@@ -355,6 +355,285 @@
       opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; z-index: 999999; white-space: nowrap;
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── BOARD TOOLBAR & VIEW MODE SELECTOR ────── */
+    .board-toolbar {
+      width: 100%;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-bottom: 16px;
+      padding: 0 10px;
+    }
+    .view-mode-selector {
+      display: flex;
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      backdrop-filter: blur(10px);
+      padding: 4px;
+      border-radius: 12px;
+      gap: 4px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    }
+    .view-mode-btn {
+      background: transparent;
+      border: none;
+      padding: 6px 14px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-sec);
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    .view-mode-btn:hover {
+      color: var(--text-pri);
+      background: rgba(0, 0, 0, 0.03);
+    }
+    .view-mode-btn.active {
+      background: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 2px 8px var(--accent-glow);
+    }
+
+    /* 보기 모드에 따른 #board 레이아웃 변경 */
+    #board.view-mode-mini {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+      padding: 20px;
+      min-height: auto !important;
+    }
+    #board.view-mode-mini .portal-card {
+      position: static !important;
+      width: auto !important;
+      height: auto !important;
+      aspect-ratio: 1.6 / 1;
+      border-radius: 14px;
+    }
+    #board.view-mode-mini .portal-card .card-desc,
+    #board.view-mode-mini .portal-card .card-bottom,
+    #board.view-mode-mini .portal-card .card-top .badge,
+    #board.view-mode-mini .portal-card .rs {
+      display: none !important;
+    }
+    #board.view-mode-mini .portal-card .card-link {
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      padding: 16px;
+    }
+    #board.view-mode-mini .portal-card .card-top {
+      margin-bottom: 0;
+    }
+
+    #board.view-mode-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 20px;
+      min-height: auto !important;
+    }
+    #board.view-mode-list .portal-card {
+      position: static !important;
+      width: 100% !important;
+      height: auto !important;
+      border-radius: 12px;
+    }
+    #board.view-mode-list .portal-card .card-link {
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 16px;
+      padding: 12px 20px;
+    }
+    #board.view-mode-list .portal-card .card-top {
+      margin-bottom: 0;
+      flex-shrink: 0;
+    }
+    #board.view-mode-list .portal-card .card-top .badge,
+    #board.view-mode-list .portal-card .rs {
+      display: none !important;
+    }
+    #board.view-mode-list .portal-card .card-middle {
+      margin-bottom: 0;
+      flex-grow: 1;
+    }
+    #board.view-mode-list .portal-card .card-desc {
+      display: none;
+    }
+    #board.view-mode-list .portal-card .card-bottom {
+      flex-shrink: 0;
+    }
+
+    /* ── NAVER WORKS INTEGRATION PANEL ─────────── */
+    #naverWorksPanel {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 30px;
+      width: 100%;
+      position: relative;
+      z-index: 10;
+    }
+    .works-half {
+      flex: 1;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 280px;
+      max-height: 380px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .works-half:hover {
+      border-color: rgba(16, 185, 129, 0.3);
+      box-shadow: 0 12px 32px rgba(16, 185, 129, 0.08);
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      background: rgba(255, 255, 255, 0.4);
+    }
+    .panel-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-icon {
+      font-size: 1.2rem;
+    }
+    .panel-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-pri);
+    }
+    .count-badge {
+      background: #ef4444;
+      color: #ffffff;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      min-width: 20px;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(239, 68, 68, 0.4);
+    }
+    .panel-more {
+      font-size: 0.75rem;
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.15s;
+    }
+    .panel-more:hover {
+      color: #059669;
+      text-decoration: underline;
+    }
+    .panel-body {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+    }
+    .works-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .works-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(0, 0, 0, 0.03);
+      border-radius: 10px;
+      font-size: 0.8rem;
+      transition: background 0.15s, transform 0.15s;
+    }
+    .works-list li:hover {
+      background: rgba(255, 255, 255, 0.9);
+      transform: translateY(-1px);
+    }
+    .list-placeholder {
+      justify-content: center !important;
+      color: var(--text-dim);
+      border: 1px dashed rgba(0, 0, 0, 0.05) !important;
+      background: transparent !important;
+      padding: 30px !important;
+    }
+    .mail-item-left {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+      margin-right: 15px;
+      text-align: left;
+    }
+    .mail-subject {
+      font-weight: 600;
+      color: var(--text-pri);
+      text-decoration: none;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+    }
+    .mail-subject:hover {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+    .mail-sender {
+      font-size: 0.7rem;
+      color: var(--text-sec);
+    }
+    .mail-date {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+    .sns-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 100%;
+      text-align: left;
+    }
+    .sns-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+    }
+    .sns-type {
+      font-weight: 700;
+      color: var(--accent-blue);
+    }
+    .sns-date {
+      color: var(--text-dim);
+    }
+    .sns-content {
+      color: var(--text-pri);
+      line-height: 1.4;
+    }
+    .sns-type.error {
+      color: #ef4444;
+    }
+
+    @media (max-width: 768px) {
+      #naverWorksPanel {
+        flex-direction: column;
+      }
+    }
   </style>
 </head>
 <body>
@@ -402,8 +681,53 @@
     </div>
   </header>
 
+  <!-- BOARD TOOLBAR (VIEW MODE SELECTOR) -->
+  <div class="board-toolbar">
+    <div class="view-mode-selector">
+      <button class="view-mode-btn active" data-mode="free" onclick="setViewMode('free')" title="자유로운 드래그 앤 드롭 정렬">🎨 자유 배치</button>
+      <button class="view-mode-btn" data-mode="mini" onclick="setViewMode('mini')" title="아이콘과 제목만 심플하게 보기">🎴 작은 카드</button>
+      <button class="view-mode-btn" data-mode="list" onclick="setViewMode('list')" title="한 줄씩 세로 목록으로 보기">☰ 목록형</button>
+    </div>
+  </div>
+
   <!-- FREE BOARD -->
   <div id="board"></div>
+
+  <!-- NAVER WORKS INTEGRATION PANEL -->
+  <div id="naverWorksPanel">
+    <!-- MAIL PANEL (LEFT) -->
+    <div class="works-half mail-panel">
+      <div class="panel-header">
+        <div class="panel-title-wrap">
+          <span class="panel-icon">✉️</span>
+          <span class="panel-title">네이버웍스 메일</span>
+          <span id="mailBadge" class="count-badge" style="display:none;">0</span>
+        </div>
+        <a href="https://mail.worksmobile.com/" target="_blank" rel="noopener" class="panel-more">메일함 바로가기 ↗</a>
+      </div>
+      <div class="panel-body">
+        <ul id="mailList" class="works-list">
+          <li class="list-placeholder">메일 목록을 불러오는 중입니다...</li>
+        </ul>
+      </div>
+    </div>
+    
+    <!-- SNS/MESSAGE PANEL (RIGHT) -->
+    <div class="works-half sns-panel">
+      <div class="panel-header">
+        <div class="panel-title-wrap">
+          <span class="panel-icon">💬</span>
+          <span class="panel-title">시스템 알림 & SNS</span>
+        </div>
+        <a href="https://talk.worksmobile.com/" target="_blank" rel="noopener" class="panel-more">메신저 바로가기 ↗</a>
+      </div>
+      <div class="panel-body">
+        <ul id="snsList" class="works-list">
+          <li class="list-placeholder">시스템 경보 및 알림 내역이 없습니다.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
 
   <footer>
     <div>© 2026 AHAMA. All Rights Reserved.</div>
@@ -510,6 +834,7 @@ const state = {
   logoSrc: '',
   logoLayout: {},    // x, y, w, h as fractions of HEADER WIDTH
   addBtnLayout: {},  // x, y as fractions of HEADER WIDTH/HEIGHT
+  viewMode: 'free',  // 'free', 'mini', 'list'
   cards: [
     { id: 'yangpyeong', type: 'fixed', name: '양평동 생산 대시보드', badge: '현장 생산', desc: 'SK 영등포 양평동 프로젝트의 조립, 글레이징, 포장, 출하, 설치 공정 생산실적 현황판', linkText: '모니터링 진입하기', imageSrc: '', href: 'http://218.158.57.134:8080/dashboard/production_dashboard.html?project=20251113-1', colorClass: 'production' },
     { id: 'tempcare', type: 'fixed', name: '양생실 실시간 온습도', badge: '실시간 온습도', desc: '1호실부터 6호실까지의 양생실 내부 온도 및 습도 실시간 트렌드 및 유효 인증 상태 조회', linkText: '모니터링 진입하기', imageSrc: '', href: 'http://218.158.57.134:8080/dashboard/temp.html', colorClass: 'tempcare' }
@@ -655,14 +980,30 @@ function applyLayout() {
   state.cards.forEach(c => {
     const el = document.getElementById('card-' + c.id);
     const L = state.layout[c.id];
-    if (!el || !L) return;
-    el.style.left   = (L.x * bW) + 'px';
-    el.style.top    = (L.y * bW) + 'px';
-    el.style.width  = (L.w * bW) + 'px';
-    el.style.height = (L.h * bW) + 'px';
-    maxBottomH = Math.max(maxBottomH, (L.y + L.h) * bW);
+    if (!el) return;
+    
+    if (state.viewMode === 'free') {
+      if (!L) return;
+      el.style.position = 'absolute';
+      el.style.left   = (L.x * bW) + 'px';
+      el.style.top    = (L.y * bW) + 'px';
+      el.style.width  = (L.w * bW) + 'px';
+      el.style.height = (L.h * bW) + 'px';
+      maxBottomH = Math.max(maxBottomH, (L.y + L.h) * bW);
+    } else {
+      el.style.position = '';
+      el.style.left = '';
+      el.style.top = '';
+      el.style.width = '';
+      el.style.height = '';
+    }
   });
-  board.style.minHeight = (maxBottomH + 50) + 'px';
+  
+  if (state.viewMode === 'free') {
+    board.style.minHeight = (maxBottomH + 50) + 'px';
+  } else {
+    board.style.minHeight = 'auto';
+  }
 
   // Logo & Add Button layout (Header relative)
   const header = document.getElementById('mainHeader');
@@ -727,7 +1068,7 @@ function initDragResize() {
     
     // Drag
     card.addEventListener('mousedown', e => {
-      if (!isAdmin()) return;
+      if (!isAdmin() || state.viewMode !== 'free') return;
       if (e.target.classList.contains('rs') || e.target.closest('.card-admin-bar')) return;
       e.preventDefault();
       document.body.classList.add('is-dragging'); card.classList.add('no-hover');
@@ -774,7 +1115,7 @@ function initDragResize() {
     // Resize
     card.querySelectorAll('.rs').forEach(handle => {
       handle.addEventListener('mousedown', e => {
-        if (!isAdmin()) return;
+        if (!isAdmin() || state.viewMode !== 'free') return;
         e.preventDefault(); e.stopPropagation();
         document.body.classList.add('is-resizing'); card.classList.add('no-hover');
         const bW = getBoard().offsetWidth;
@@ -1230,6 +1571,7 @@ async function loadPortalData() {
     if(d.logoSrc) { state.logoSrc=d.logoSrc; triggerLogoUploadVisuals(); }
     if(d.logoLayout) state.logoLayout=d.logoLayout;
     if(d.addBtnLayout) state.addBtnLayout=d.addBtnLayout;
+    if(d.viewMode) state.viewMode = d.viewMode;
     if(d.cards) {
       state.cards = d.cards;
 
@@ -1247,7 +1589,7 @@ async function loadPortalData() {
 async function savePortalData() {
   state.portalTitle = document.getElementById('portalTitle').textContent.trim();
   state.portalSubtitle = document.getElementById('portalSubtitle').textContent.trim();
-  const payload = { schema: 'portal.v2', savedAt: new Date().toISOString(), portalTitle: state.portalTitle, portalSubtitle: state.portalSubtitle, logoSrc: state.logoSrc, logoLayout: state.logoLayout, addBtnLayout: state.addBtnLayout, cards: state.cards, layout: state.layout };
+  const payload = { schema: 'portal.v3', savedAt: new Date().toISOString(), portalTitle: state.portalTitle, portalSubtitle: state.portalSubtitle, logoSrc: state.logoSrc, logoLayout: state.logoLayout, addBtnLayout: state.addBtnLayout, cards: state.cards, layout: state.layout, viewMode: state.viewMode };
   const pwd = localStorage.getItem('dashboard_password')||'1234';
   try {
     const res = await fetch('http://218.158.57.134:8080/dashboard/save_data.php', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Dashboard-Password': pwd, 'X-Dashboard-Project': 'portal_index', 'X-Dashboard-Mode': 'main' }, body: JSON.stringify(payload,null,2) });
@@ -1265,16 +1607,153 @@ function triggerLogoUploadVisuals() {
   if(state.logoSrc && ph){ ph.style.display = 'none'; }
 }
 
+function setViewMode(mode) {
+  state.viewMode = mode;
+  updateViewModeUI();
+  applyLayout();
+  if (isAdmin()) {
+    savePortalData();
+  }
+}
+
+function updateViewModeUI() {
+  const board = getBoard();
+  board.classList.remove('view-mode-mini', 'view-mode-list');
+  if (state.viewMode === 'mini') {
+    board.classList.add('view-mode-mini');
+  } else if (state.viewMode === 'list') {
+    board.classList.add('view-mode-list');
+  }
+  
+  document.querySelectorAll('.view-mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === state.viewMode);
+  });
+}
+
+// 네이버웍스 API 데이터를 가져와 화면에 렌더링하는 함수
+async function fetchNaverWorksData() {
+  try {
+    const res = await fetch('http://218.158.57.134:8080/dashboard/naver_works_api.php?action=summary', { cache: 'no-cache' });
+    if (!res.ok) throw new Error('API request failed');
+    const data = await res.json();
+    
+    // 1. 메일 정보 반영
+    const mailBadge = document.getElementById('mailBadge');
+    if (data.unreadMailCount > 0) {
+      mailBadge.textContent = data.unreadMailCount;
+      mailBadge.style.display = 'inline-block';
+    } else {
+      mailBadge.style.display = 'none';
+    }
+    
+    const mailList = document.getElementById('mailList');
+    if (data.mails && data.mails.length > 0) {
+      mailList.innerHTML = data.mails.map(m => `
+        <li>
+          <div class="mail-item-left">
+            <a class="mail-subject" href="${esc(m.link)}" target="_blank" rel="noopener">${esc(m.subject)}</a>
+            <span class="mail-sender">${esc(m.senderName)} (${esc(m.senderEmail)})</span>
+          </div>
+          <span class="mail-date">${esc(m.receivedTime)}</span>
+        </li>
+      `).join('');
+    } else {
+      mailList.innerHTML = '<li class="list-placeholder">새로운 메일이 없습니다.</li>';
+    }
+    
+    // 2. SNS/시스템 알림 반영
+    const snsList = document.getElementById('snsList');
+    if (data.notifications && data.notifications.length > 0) {
+      snsList.innerHTML = data.notifications.map(n => `
+        <li>
+          <div class="sns-item">
+            <div class="sns-meta">
+              <span class="sns-type ${n.level === 'error' ? 'error' : ''}">${esc(n.source)}</span>
+              <span class="sns-date">${esc(n.time)}</span>
+            </div>
+            <div class="sns-content">${esc(n.message)}</div>
+          </div>
+        </li>
+      `).join('');
+    } else {
+      snsList.innerHTML = '<li class="list-placeholder">시스템 경보 및 알림 내역이 없습니다.</li>';
+    }
+    
+  } catch (err) {
+    // API 미완성이거나 로딩 실패 시 Mock 데이터 노출 (연동 전 프리뷰 제공)
+    showMockNaverWorksData();
+  }
+}
+
+// API 미등록 혹은 에러 시 테스트를 위해 보여줄 Mock 데이터
+function showMockNaverWorksData() {
+  const mailBadge = document.getElementById('mailBadge');
+  mailBadge.textContent = '3';
+  mailBadge.style.display = 'inline-block';
+  
+  const mailList = document.getElementById('mailList');
+  mailList.innerHTML = `
+    <li>
+      <div class="mail-item-left">
+        <a class="mail-subject" href="https://mail.worksmobile.com/" target="_blank" rel="noopener">[알림] 양평동 현장 자재 조립 단계 시작 완료의 건</a>
+        <span class="mail-sender">홍길동 차장 (kdhong@ahama.com)</span>
+      </div>
+      <span class="mail-date">10:42</span>
+    </li>
+    <li>
+      <div class="mail-item-left">
+        <a class="mail-subject" href="https://mail.worksmobile.com/" target="_blank" rel="noopener">6월 생산실적 현황 보고서 송부 및 검토 요청</a>
+        <span class="mail-sender">김철수 부장 (cskim@ahama.com)</span>
+      </div>
+      <span class="mail-date">09:15</span>
+    </li>
+    <li>
+      <div class="mail-item-left">
+        <a class="mail-subject" href="https://mail.worksmobile.com/" target="_blank" rel="noopener">양생실 온습도 실시간 모니터링 주간 리포트</a>
+        <span class="mail-sender">시스템 알림봇 (bot@ahama.com)</span>
+      </div>
+      <span class="mail-date">어제</span>
+    </li>
+  `;
+  
+  const snsList = document.getElementById('snsList');
+  snsList.innerHTML = `
+    <li>
+      <div class="sns-item">
+        <div class="sns-meta">
+          <span class="sns-type error">⚠️ 양생실 경보</span>
+          <span class="sns-date">10:50</span>
+        </div>
+        <div class="sns-content">양생실 3호실 온도가 유효 인증 범위(20℃~22℃)를 초과하여 24.5℃로 상승했습니다. 즉시 확인 바랍니다.</div>
+      </div>
+    </li>
+    <li>
+      <div class="sns-item">
+        <div class="sns-meta">
+          <span class="sns-type">✅ 실적 저장</span>
+          <span class="sns-date">09:30</span>
+        </div>
+        <div class="sns-content">양평동 현장 20251113-1의 금일 오전 조립 공정 생산 실적 데이터 저장이 완료되었습니다.</div>
+      </div>
+    </li>
+  `;
+}
+
 (async function init() {
   await loadPortalData();
   document.getElementById('portalTitle').textContent = state.portalTitle;
   document.getElementById('portalSubtitle').textContent = state.portalSubtitle;
   applyAdminMode();
+  updateViewModeUI();
   if(!state.layout || !Object.keys(state.layout).length) state.layout = calcDefaultLayout();
   if(!state.logoLayout || !Object.keys(state.logoLayout).length) state.logoLayout = calcDefaultLogoLayout();
   if(!state.addBtnLayout || !Object.keys(state.addBtnLayout).length) state.addBtnLayout = calcDefaultAddBtnLayout();
   triggerLogoUploadVisuals();
   buildBoard();
+  
+  // 네이버웍스 API 폴링 구동
+  fetchNaverWorksData();
+  setInterval(fetchNaverWorksData, 30000); // 30초마다 갱신
 })();
 </script>
 </body>
