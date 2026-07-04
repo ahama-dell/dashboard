@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 
 <head>
@@ -1362,7 +1362,10 @@
             <span class="panel-title">네이버웍스 메일</span>
             <span id="mailBadge" class="count-badge" style="display:none;">0</span>
           </div>
-          <a href="https://mail.worksmobile.com/" target="_blank" rel="noopener" class="panel-more">메일함 바로가기 ↗</a>
+          <div class="panel-header-actions" style="display:flex; align-items:center; gap:8px;">
+            <button id="worksLogoutBtn" class="unconfigured-link" style="display:none; padding:4px 8px; border-radius:4px; font-size:0.65rem; border:1px solid rgba(239, 68, 68, 0.3); background:rgba(239, 68, 68, 0.04); color:#ef4444; cursor:pointer;" onclick="doNaverWorksLogout()" title="네이버웍스 로그아웃">🚪 로그아웃</button>
+            <a href="https://mail.worksmobile.com/" target="_blank" rel="noopener" class="panel-more">메일함 바로가기 ↗</a>
+          </div>
         </div>
         <div class="panel-body">
           <ul id="mailList" class="works-list">
@@ -1608,6 +1611,28 @@
 
     function calcDefaultLogoLayout() {
       return { x: 0.15, y: 0.1, w: 0.15, h: 0.8 }; // 헤더 기준 비율
+    }
+
+    // View Mode functions
+    function setViewMode(mode) {
+      state.viewMode = mode;
+      const board = getBoard();
+      board.classList.remove('view-mode-free', 'view-mode-mini', 'view-mode-list');
+      if (mode !== 'free') {
+        board.classList.add('view-mode-' + mode);
+      }
+      updateViewModeUI();
+      applyLayout();
+    }
+
+    function updateViewModeUI() {
+      document.querySelectorAll('.view-mode-btn').forEach(function(btn) {
+        if (btn.dataset.mode === state.viewMode) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
     }
 
     function buildBoard() {
@@ -2220,122 +2245,52 @@
         const ct = res.headers.get('content-type');
         if (ct && ct.includes('application/json')) {
           const d = await res.json();
-          if (d.success) { showToast(`✓ data_${no}.json 파일이 생성되었습니다.`); return true; }
-          alert('파일 생성 실패: ' + (d.message || '알 수 없는 오류')); return false;
+          if (d.success) { showToast('data_' + no + '.json created'); return true; }
+          alert('Create failed: ' + (d.message || 'unknown error')); return false;
         }
-        alert('서버 응답 오류 (PHP 모듈 확인 필요)'); return false;
-      } catch (e) { alert('서버 연결 실패: ' + e.message); return false; }
+        alert('Server response error'); return false;
+      } catch (e) { alert('Server error: ' + e.message); return false; }
     }
 
-    async function deleteCard(id) {
-      const card = state.cards.find(c => c.id === id);
-      const isDraft = card && card.type === 'draft';
-      const name = (card && card.name) ? card.name : id;
-      if (isDraft) {
-        if (!confirm('미설정 빈 카드를 삭제하시겠습니까?')) return;
-      } else {
-        if (!confirm(`"${name}" 카드를 삭제하시겠습니까?\n\ndata_${id}.json 파일도 함께 삭제됩니다.`)) return;
-        const pwd = localStorage.getItem('dashboard_password') || '1234';
-        try {
-          const res = await fetch(`http://218.158.57.134:8080/dashboard/save_data.php?action=delete&project=${encodeURIComponent(id)}`, {
-            headers: { 'X-Dashboard-Password': pwd }
-          });
-          const ct = res.headers.get('content-type');
-          if (ct && ct.includes('application/json')) {
-            const d = await res.json();
-            if (!d.success && !confirm(`파일 삭제 실패: ${d.message}\n\n카드만 삭제하시겠습니까?`)) return;
-          }
-        } catch (e) {
-          if (!confirm('서버 연결 실패로 파일을 삭제하지 못했습니다.\n카드만 삭제하시겠습니까?')) return;
-        }
-      }
-      state.cards = state.cards.filter(c => c.id !== id);
-      delete state.layout[id];
-      buildBoard();
-      if (!isDraft) await savePortalData();
-    }
-
-function setViewMode(mode) {
-  state.viewMode = mode;
-  updateViewModeUI();
-  applyLayout();
-  if (isAdmin()) {
-    savePortalData();
-  }
-}
-
-function updateViewModeUI() {
-  const board = getBoard();
-  board.classList.remove('view-mode-mini', 'view-mode-list');
-  if (state.viewMode === 'mini') {
-    board.classList.add('view-mode-mini');
-  } else if (state.viewMode === 'list') {
-    board.classList.add('view-mode-list');
-  }
-  
-  document.querySelectorAll('.view-mode-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.mode === state.viewMode);
-  });
-}
-
-function openWorksDetail(type, index) {
-  let title = '', sender = '', date = '', content = '', link = '#', typeText = '';
-  
-  if (type === 'mail') {
-    const m = state.naverWorksMails[index];
-    if (!m) return;
-    title = m.subject;
-    sender = `보낸 사람: ${m.senderName} (${m.senderEmail})`;
-    date = `받은 시각: ${m.receivedTime}`;
-    content = m.body || m.subject + '\n\n(본문 내용이 존재하지 않습니다)';
-    link = m.link || 'https://mail.worksmobile.com/';
-    typeText = '✉️ 네이버웍스 메일';
-  } else {
-    const n = state.naverWorksNotifications[index];
-    if (!n) return;
-    title = n.source;
-    sender = `발생처: ${n.source}`;
-    date = `발생 시각: ${n.time}`;
-    content = n.message;
-    link = 'https://talk.worksmobile.com/';
-    typeText = '💬 시스템 알림 & 메신저';
-  }
-  
-  document.getElementById('worksDetailType').textContent = typeText;
-  document.getElementById('worksDetailTitle').textContent = title;
-  document.getElementById('worksDetailSender').textContent = sender;
-  document.getElementById('worksDetailDate').textContent = date;
-  document.getElementById('worksDetailContent').textContent = content;
-  
-  const linkBtn = document.getElementById('worksDetailLink');
-  if (link) {
-    linkBtn.href = link;
-    linkBtn.style.display = 'flex';
-  } else {
-    linkBtn.style.display = 'none';
-  }
-  
-  document.getElementById('worksDetailModal').classList.add('open');
-}
-
-function closeWorksDetailModal() {
-  document.getElementById('worksDetailModal').classList.remove('open');
-}
-
-// 네이버웍스 API 데이터를 가져와 화면에 렌더링하는 함수
+    // 네이버 API 모니터링 화면에 표시하는 함수 (OAuth 2.0 버전)
 async function fetchNaverWorksData() {
   try {
-    const res = await fetch('dashboard/naver_works_api.php?action=summary', { cache: 'no-cache' });
-    if (!res.ok) throw new Error('API request failed');
-    const data = await res.json();
-    
-    // 💡 만약 API 응답이 Mock 시뮬레이션 데이터이고 관리자 모드가 아니면 연동 대기 안내 가이드 카드를 띄움
-    if (data.isMockMode && !isAdmin()) {
-      showUnconfiguredMessage();
+    // 0. OAuth 설정 조회
+    const cfgRes = await fetch('dashboard/naver_works_api.php?action=config', { cache: 'no-cache' });
+    if (!cfgRes.ok) throw new Error('Config load failed');
+    const config = await cfgRes.json();
+
+    // 1. 로그인 세션 및 토큰 갱신 체크
+    const accessToken = await checkAndRefreshToken();
+
+    // 로그인 토큰이 없는 경우 로그인 화면 노출 (모든 사용자)
+    if (!accessToken) {
+      showLoginFormMessage(config.client_id, config.isMockMode);
       return;
     }
     
-    // 실제 연동 완료 시 또는 관리자 모드인 경우 데이터 목록 렌더링
+    // 2. 메일 요약 데이터 요청 (헤더에 Authorization Bearer 토큰 실어 전송)
+    const res = await fetch('dashboard/naver_works_api.php?action=summary', {
+      cache: 'no-cache',
+      headers: {
+        'Authorization': 'Bearer ' + accessToken
+      }
+    });
+    
+    if (!res.ok) throw new Error('API request failed');
+    const data = await res.json();
+    
+    if (!data.success) {
+      // API 응답 실패 시(만료 등), 토큰을 파괴하고 로그아웃 화면으로 유도
+      doNaverWorksLogout();
+      return;
+    }
+    
+    // 로그인 완료 시 로그아웃 버튼 노출
+    const logoutBtn = document.getElementById('worksLogoutBtn');
+    if (logoutBtn) logoutBtn.style.display = 'inline-block';
+    
+    // 실제 연동 완료 데이터 렌더링
     renderRealNaverWorksData(data);
     
   } catch (err) {
@@ -2350,6 +2305,8 @@ async function fetchNaverWorksData() {
 function showUnconfiguredMessage() {
   const mailBadge = document.getElementById('mailBadge');
   mailBadge.style.display = 'none';
+  const logoutBtn = document.getElementById('worksLogoutBtn');
+  if (logoutBtn) logoutBtn.style.display = 'none';
   
   // 메일 패널의 내용부를 '연동 설정 필요' 안내문으로 덮어씀
   const mailPanelBody = document.querySelector('.mail-panel .panel-body');
@@ -2370,6 +2327,38 @@ function showUnconfiguredMessage() {
       <div class="unconfigured-title">알림 봇 연동 대기 중</div>
       <div class="unconfigured-desc">양생실 경보 및 실적 저장 메시지를 네이버웍스 메신저로 받으려면 API 키 등록이 필요합니다.</div>
       <a href="https://developers.worksmobile.com/" target="_blank" rel="noopener" class="unconfigured-link">메신저 API 연동 가이드 ↗</a>
+    </div>
+  `;
+}
+
+function showLoginFormMessage(clientId, isMockMode) {
+  const mailBadge = document.getElementById('mailBadge');
+  mailBadge.style.display = 'none';
+  
+  const logoutBtn = document.getElementById('worksLogoutBtn');
+  if (logoutBtn) logoutBtn.style.display = 'none';
+  
+  const guideText = isMockMode 
+    ? '현재 데모 모드입니다. 로그인 클릭 시 즉시 테스트 로그인이 완료됩니다.' 
+    : '네이버웍스 로그인 시 본인의 최근 메일함과 실시간 연동됩니다. (로그인 세션은 브라우저에만 안전하게 보호됩니다.)';
+    
+  const mailPanelBody = document.querySelector('.mail-panel .panel-body');
+  mailPanelBody.innerHTML = `
+    <div class="works-unconfigured">
+      <div class="unconfigured-icon">🔒</div>
+      <div class="unconfigured-title">메일함 연동 로그인 필요</div>
+      <div class="unconfigured-desc">${guideText}</div>
+      <button class="unconfigured-link" style="cursor:pointer;" onclick="doNaverWorksLogin('${clientId}', ${isMockMode})">🔑 네이버웍스 로그인</button>
+    </div>
+  `;
+  
+  const snsPanelBody = document.querySelector('.sns-panel .panel-body');
+  snsPanelBody.innerHTML = `
+    <div class="works-unconfigured">
+      <div class="unconfigured-icon">💬</div>
+      <div class="unconfigured-title">알림 봇 연동 대기 중</div>
+      <div class="unconfigured-desc">양생실 경보 알림을 받아보기 위해 본인 계정으로 우선 로그인을 진행해 주세요.</div>
+      <button class="unconfigured-link" style="cursor:pointer;" onclick="doNaverWorksLogin('${clientId}', ${isMockMode})">🔑 네이버웍스 로그인</button>
     </div>
   `;
 }
@@ -2497,6 +2486,122 @@ function showMockNaverWorksData() {
   renderRealNaverWorksData(mockData);
 }
 
+// 🔑 네이버웍스 로그인 처리
+function doNaverWorksLogin(clientId, isMockMode) {
+  if (isMockMode) {
+    const now = Date.now();
+    localStorage.setItem('naver_works_access_token', 'mock_access_token_' + now);
+    localStorage.setItem('naver_works_refresh_token', 'mock_refresh_token_' + now);
+    localStorage.setItem('naver_works_token_expires', String(now + 86400 * 1000));
+    showToast('✓ 테스트 로그인이 완료되었습니다.');
+    setTimeout(() => window.location.reload(), 800);
+    return;
+  }
+  
+  const redirectUri = window.location.origin + window.location.pathname;
+  const loginUrl = 'https://auth.worksmobile.com/oauth2/v2.0/authorize?client_id=' + encodeURIComponent(clientId) + '&redirect_uri=' + encodeURIComponent(redirectUri) + '&scope=mail.read&response_type=code&state=dashboard_login';
+  
+  window.location.href = loginUrl;
+}
+
+// 🚪 네이버웍스 로그아웃 처리
+function doNaverWorksLogout() {
+  localStorage.removeItem('naver_works_access_token');
+  localStorage.removeItem('naver_works_refresh_token');
+  localStorage.removeItem('naver_works_token_expires');
+  showToast('✓ 네이버웍스 로그아웃이 완료되었습니다.');
+  setTimeout(() => window.location.reload(), 500);
+}
+
+// 🔄 토큰 갱신 및 만료 시간 확인
+async function checkAndRefreshToken() {
+  const accessToken = localStorage.getItem('naver_works_access_token');
+  const refreshToken = localStorage.getItem('naver_works_refresh_token');
+  const expiresStr = localStorage.getItem('naver_works_token_expires');
+  
+  if (!accessToken || !expiresStr) return null;
+  
+  const now = Date.now();
+  const expiresAt = parseInt(expiresStr, 10);
+  
+  // 만료 시간 5분 전이거나 이미 만료된 경우 토큰 자동 갱신
+  if (expiresAt - now < 300 * 1000) {
+    if (!refreshToken) {
+      doNaverWorksLogout();
+      return null;
+    }
+    
+    try {
+      const res = await fetch('dashboard/naver_works_api.php?action=refresh_token&refresh_token=' + encodeURIComponent(refreshToken));
+      if (!res.ok) throw new Error('Token refresh request failed');
+      const data = await res.json();
+      
+      if (data.success && data.access_token) {
+        localStorage.setItem('naver_works_access_token', data.access_token);
+        const newExpiresIn = data.expires_in || 3600;
+        localStorage.setItem('naver_works_token_expires', String(Date.now() + newExpiresIn * 1000));
+        return data.access_token;
+      } else {
+        doNaverWorksLogout();
+        return null;
+      }
+    } catch (e) {
+      return accessToken;
+    }
+  }
+  
+  return accessToken;
+}
+
+// 📥 OAuth 인증 완료 콜백(code 수집) 처리
+async function handleOAuthCallback() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const code = urlParams.get('code');
+  
+  if (code) {
+    try {
+      const cfgRes = await fetch('dashboard/naver_works_api.php?action=config', { cache: 'no-cache' });
+      if (!cfgRes.ok) throw new Error('Config load failed');
+      const config = await cfgRes.json();
+      
+      if (config.isMockMode) {
+        const now = Date.now();
+        localStorage.setItem('naver_works_access_token', 'mock_access_token_' + now);
+        localStorage.setItem('naver_works_refresh_token', 'mock_refresh_token_' + now);
+        localStorage.setItem('naver_works_token_expires', String(now + 86400 * 1000));
+      } else {
+        const redirectUri = window.location.origin + window.location.pathname;
+        const res = await fetch('dashboard/naver_works_api.php?action=get_token&code=' + encodeURIComponent(code) + '&redirect_uri=' + encodeURIComponent(redirectUri));
+        if (!res.ok) throw new Error('Token exchange request failed');
+        const data = await res.json();
+        
+        if (data.success && data.access_token) {
+          localStorage.setItem('naver_works_access_token', data.access_token);
+          if (data.refresh_token) {
+            localStorage.setItem('naver_works_refresh_token', data.refresh_token);
+          }
+          const expiresIn = data.expires_in || 3600;
+          localStorage.setItem('naver_works_token_expires', String(Date.now() + expiresIn * 1000));
+          showToast('✓ 네이버웍스 연동 인증에 성공했습니다.');
+        } else {
+          showToast('⚠ 인증 토큰 획득에 실패했습니다: ' + (data.message || '알 수 없는 오류'));
+        }
+      }
+    } catch (e) {
+      showToast('⚠ 서버 통신 장애로 인증 처리를 완료하지 못했습니다.');
+    } finally {
+      urlParams.delete('code');
+      urlParams.delete('state');
+      urlParams.delete('error');
+      
+      const newQuery = urlParams.toString();
+      const cleanUrl = window.location.pathname + (newQuery ? '?' + newQuery : '');
+      window.history.replaceState({}, document.title, cleanUrl);
+      
+      fetchNaverWorksData();
+    }
+  }
+}
 
 // Server load/save
 async function loadPortalData() {
@@ -2554,8 +2659,14 @@ function triggerLogoUploadVisuals() {
   triggerLogoUploadVisuals();
   buildBoard();
 
-  // 네이버웍스 API 폴링 구동
-  fetchNaverWorksData();
+  // 네이버웍스 OAuth 콜백 처리 (로그인 후 ?code= 파라미터가 있으면 토큰 교환)
+  const hasOAuthCode = !!new URLSearchParams(window.location.search).get('code');
+  await handleOAuthCallback();
+
+  // OAuth 콜백이 없는 경우에만 직접 로드 (콜백 처리 시 내부에서 자동 호출됨)
+  if (!hasOAuthCode) {
+    fetchNaverWorksData();
+  }
   setInterval(fetchNaverWorksData, 30000); // 30초마다 갱신
 })();
 

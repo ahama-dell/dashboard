@@ -42,6 +42,124 @@ $isMockMode = (WORKS_CLIENT_ID === 'YOUR_CLIENT_ID' || empty(WORKS_CLIENT_ID));
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $action = isset($_GET['action']) ? $_GET['action'] : '';
 
+    // 🔑 0. OAuth 설정 조회 API
+    if ($action === 'config') {
+        echo json_encode([
+            "success" => true,
+            "client_id" => WORKS_CLIENT_ID === 'YOUR_CLIENT_ID' ? '' : WORKS_CLIENT_ID,
+            "isMockMode" => $isMockMode
+        ]);
+        ob_end_flush();
+        exit;
+    }
+
+    // 🔑 1. OAuth 2.0 authorization_code 토큰 발급 API
+    if ($action === 'get_token') {
+        if ($isMockMode) {
+            echo json_encode([
+                "success" => true,
+                "access_token" => "mock_access_token_" . time(),
+                "refresh_token" => "mock_refresh_token_" . time(),
+                "expires_in" => 86400
+            ]);
+            ob_end_flush();
+            exit;
+        }
+        
+        $code = isset($_GET['code']) ? $_GET['code'] : '';
+        $redirectUri = isset($_GET['redirect_uri']) ? $_GET['redirect_uri'] : '';
+        
+        if (empty($code) || empty($redirectUri)) {
+            echo json_encode(["success" => false, "message" => "필수 파라미터(code, redirect_uri)가 누락되었습니다."]);
+            ob_end_flush();
+            exit;
+        }
+        
+        $ch = curl_init('https://auth.worksmobile.com/oauth2/v2.0/token');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+            'code' => $code,
+            'grant_type' => 'authorization_code',
+            'client_id' => WORKS_CLIENT_ID,
+            'client_secret' => WORKS_CLIENT_SECRET,
+            'redirect_uri' => $redirectUri
+        ]));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/x-www-form-urlencoded'
+        ]);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode !== 200) {
+            echo json_encode([
+                "success" => false, 
+                "message" => "토큰 발급 실패 (HTTP $httpCode)",
+                "raw" => $response ? json_decode($response, true) : null
+            ]);
+        } else {
+            $tokenData = json_decode($response, true);
+            $tokenData['success'] = true;
+            echo json_encode($tokenData);
+        }
+        ob_end_flush();
+        exit;
+    }
+
+    // 🔑 2. OAuth 2.0 refresh_token 토큰 갱신 API
+    if ($action === 'refresh_token') {
+        if ($isMockMode) {
+            echo json_encode([
+                "success" => true,
+                "access_token" => "mock_access_token_refreshed_" . time(),
+                "expires_in" => 86400
+            ]);
+            ob_end_flush();
+            exit;
+        }
+        
+        $refreshToken = isset($_GET['refresh_token']) ? $_GET['refresh_token'] : '';
+        if (empty($refreshToken)) {
+            echo json_encode(["success" => false, "message" => "refresh_token이 누락되었습니다."]);
+            ob_end_flush();
+            exit;
+        }
+        
+        $ch = curl_init('https://auth.worksmobile.com/oauth2/v2.0/token');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+            'grant_type' => 'refresh_token',
+            'refresh_token' => $refreshToken,
+            'client_id' => WORKS_CLIENT_ID,
+            'client_secret' => WORKS_CLIENT_SECRET
+        ]));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/x-www-form-urlencoded'
+        ]);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode !== 200) {
+            echo json_encode([
+                "success" => false, 
+                "message" => "토큰 갱신 실패 (HTTP $httpCode)",
+                "raw" => $response ? json_decode($response, true) : null
+            ]);
+        } else {
+            $tokenData = json_decode($response, true);
+            $tokenData['success'] = true;
+            echo json_encode($tokenData);
+        }
+        ob_end_flush();
+        exit;
+    }
+
+    // ✉️ 3. 개별 사용자 메일 및 알림 요약 정보 API
     if ($action === 'summary') {
         if ($isMockMode) {
             // 디버그 및 프론트엔드 정합성 테스트용 Mock 데이터 제공
@@ -56,6 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                         "senderEmail" => "kdhong@ahama.com",
                         "receivedTime" => "10:42",
                         "body" => "안녕하세요. 관리팀 홍길동 차장입니다.\n\n양평동 현장의 조립 단계 자재 준비 및 공정 개시가 금일 10시 30분을 기점으로 정상 시작 완료되었습니다.\n\n실시간 생산현황 대시보드를 통해 현장 실적을 확인하실 수 있으니 많은 참고 바랍니다.\n\n감사합니다.",
+                        "isUnread" => true,
                         "link" => "https://mail.worksmobile.com/"
                     ],
                     [
@@ -64,6 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                         "senderEmail" => "cskim@ahama.com",
                         "receivedTime" => "09:15",
                         "body" => "대시보드 운영담당자님께,\n\n지난 6월 한 달 동안 집계된 사내 생산실적 종합 주간/월간 리포트 초안을 작성하여 공유해 드립니다.\n\n기존 대시보드 저장 기능 테스트 데이터를 토대로 도출한 결과입니다.\n수정 사항이 있다면 오늘 오후 6시 전까지 피드백 회신 바랍니다.\n\n수고하십시오.\n김철수 드림.",
+                        "isUnread" => true,
                         "link" => "https://mail.worksmobile.com/"
                     ],
                     [
@@ -72,6 +192,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                         "senderEmail" => "bot@ahama.com",
                         "receivedTime" => "어제",
                         "body" => "본 메일은 시스템 자동 정기 보고서입니다.\n\n지난 주(06.28~07.04) 동안 기록된 총 6개 양생실의 내부 온습도 실시간 데이터 집계 통계입니다.\n\n- 유효 인증 유지 비율: 99.8%\n- 최대 측정 온도: 23.1℃ (3호실)\n- 최소 측정 습도: 58% (5호실)\n\n상세 트렌드 그래프는 대시보드 사이트의 온습도 실시간 모니터링 페이지에서 조회하실 수 있습니다.",
+                        "isUnread" => true,
+                        "link" => "https://mail.worksmobile.com/"
+                    ],
+                    [
+                        "subject" => "[협조] 차주 자재 입고 일정 확인의 건",
+                        "senderName" => "이영희 과장",
+                        "senderEmail" => "yhlee@ahama.com",
+                        "receivedTime" => "어제",
+                        "body" => "안녕하세요. 이영희 과장입니다.\n\n차주 월요일부터 양평동 현장으로 조립 부품 및 가공 판재가 순차 입고될 예정입니다.\n\n현장 하역 공간 확보 및 크레인 장비 일정을 미리 확인하시어 부품 입고 시 혼선이 없도록 협조 요청 드립니다.\n\n세부 입고 수량 명세서는 첨부된 엑셀 리스트를 참조하십시오.",
+                        "isUnread" => false,
+                        "link" => "https://mail.worksmobile.com/"
+                    ],
+                    [
+                        "subject" => "사내 통합 모니터링 시스템 로그인 비밀번호 변경 안내",
+                        "senderName" => "IT지원팀",
+                        "senderEmail" => "it@ahama.com",
+                        "receivedTime" => "07.02",
+                        "body" => "보안 정책에 따라 통합 모니터링 대시보드 및 포털 관리자 패스워드를 정기적으로 변경해 주시기 바랍니다.\n\n현재 설정된 기본 비밀번호는 주기적으로 만료 처리될 수 있으며, 새로운 비밀번호 설정 시 영문 대소문자, 숫자, 특수문자를 혼용하여 설정하십시오.\n\n관련 문의는 내선 114번으로 연락 바랍니다.",
+                        "isUnread" => false,
                         "link" => "https://mail.worksmobile.com/"
                     ]
                 ],
@@ -94,8 +233,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             ob_end_flush();
             exit;
         } else {
-            // 실제 네이버웍스 API 연동 로직
-            $summaryData = getNaverWorksSummary();
+            // 헤더 또는 쿼리 파라미터에서 access_token 추출
+            $accessToken = '';
+            
+            // HTTP Authorization 헤더 확인
+            $authHeader = '';
+            if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+                $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
+            } elseif (function_exists('apache_request_headers')) {
+                $requestHeaders = apache_request_headers();
+                if (isset($requestHeaders['Authorization'])) {
+                    $authHeader = $requestHeaders['Authorization'];
+                }
+            }
+            
+            if (!empty($authHeader) && preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+                $accessToken = $matches[1];
+            } elseif (isset($_GET['access_token'])) {
+                $accessToken = $_GET['access_token'];
+            }
+            
+            if (empty($accessToken)) {
+                echo json_encode([
+                    "success" => false, 
+                    "message" => "인증 토큰(access_token)이 전달되지 않았습니다."
+                ]);
+                ob_end_flush();
+                exit;
+            }
+            
+            // 실제 네이버웍스 API 연동 로직 (전달받은 Access Token을 매핑)
+            $summaryData = getNaverWorksSummary($accessToken);
             echo json_encode($summaryData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
             ob_end_flush();
             exit;
@@ -147,10 +315,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ────────────────────────────────────────────────────────────────
 
 // 1. 네이버웍스 메일 요약 데이터 가져오기
-function getNaverWorksSummary() {
-    $accessToken = getNaverWorksAccessToken();
-    if (!$accessToken) {
-        return ["success" => false, "message" => "인증 토큰 발급에 실패했습니다.", "mails" => [], "unreadMailCount" => 0];
+function getNaverWorksSummary($accessToken) {
+    if (empty($accessToken)) {
+        return ["success" => false, "message" => "인증 토큰(access_token)이 누락되었습니다.", "mails" => [], "unreadMailCount" => 0];
     }
 
     // 안 읽은 메일 수 가져오기 API 호출 예시
@@ -161,10 +328,14 @@ function getNaverWorksSummary() {
     ]);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     $res = curl_exec($ch);
+    $httpCode1 = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    $inbox = $res ? json_decode($res, true) : null;
-    $unreadCount = isset($inbox['unreadMailCount']) ? $inbox['unreadMailCount'] : 0;
+    $unreadCount = 0;
+    if ($httpCode1 === 200 && $res) {
+        $inbox = json_decode($res, true);
+        $unreadCount = isset($inbox['unreadMailCount']) ? $inbox['unreadMailCount'] : 0;
+    }
 
     // 최근 메일 목록 가져오기 API 호출 예시
     $ch = curl_init('https://www.worksapis.com/v2/mails?pageSize=5');
@@ -174,24 +345,36 @@ function getNaverWorksSummary() {
     ]);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     $resList = curl_exec($ch);
+    $httpCode2 = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    $mailList = $resList ? json_decode($resList, true) : null;
     $mails = [];
-    if (isset($mailList['mails']) && is_array($mailList['mails'])) {
-        foreach ($mailList['mails'] as $m) {
-            $mails[] = [
-                "subject" => isset($m['subject']) ? $m['subject'] : '(제목 없음)',
-                "senderName" => isset($m['from']['name']) ? $m['from']['name'] : '알 수 없음',
-                "senderEmail" => isset($m['from']['email']) ? $m['from']['email'] : '',
-                "receivedTime" => isset($m['receivedTime']) ? date('H:i', strtotime($m['receivedTime'])) : '',
-                "link" => "https://mail.worksmobile.com/" // 기본 메일함 이동 링크
-            ];
+    $isSuccess = ($httpCode1 === 200 && $httpCode2 === 200);
+
+    if ($httpCode2 === 200 && $resList) {
+        $mailList = json_decode($resList, true);
+        if (isset($mailList['mails']) && is_array($mailList['mails'])) {
+            foreach ($mailList['mails'] as $m) {
+                // read 필드가 false(또는 미설정)이면 안읽은 상태
+                $isUnread = isset($m['read']) ? !$m['read'] : true;
+                // v2 API 메일 목록에는 body 대신 snippet이 제공될 수 있으므로, snippet 혹은 subject를 바인딩
+                $bodyContent = isset($m['snippet']) ? $m['snippet'] : (isset($m['subject']) ? $m['subject'] : '');
+
+                $mails[] = [
+                    "subject" => isset($m['subject']) ? $m['subject'] : '(제목 없음)',
+                    "senderName" => isset($m['from']['name']) ? $m['from']['name'] : '알 수 없음',
+                    "senderEmail" => isset($m['from']['email']) ? $m['from']['email'] : '',
+                    "receivedTime" => isset($m['receivedTime']) ? date('H:i', strtotime($m['receivedTime'])) : '',
+                    "isUnread" => $isUnread,
+                    "body" => $bodyContent,
+                    "link" => "https://mail.worksmobile.com/" // 기본 메일함 이동 링크
+                ];
+            }
         }
     }
 
     return [
-        "success" => true,
+        "success" => $isSuccess,
         "isMockMode" => false,
         "unreadMailCount" => $unreadCount,
         "mails" => $mails,
