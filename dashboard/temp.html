@@ -265,9 +265,21 @@
     pointer-events: none; z-index: 9999; white-space: nowrap;
   }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ── 포털 임베드 모드 (?embed=1) — 차트 영역만 표시 ── */
+  body.embed #header, body.embed #zoomBar, body.embed #summaryRow,
+  body.embed #filterStrip, body.embed #panScrollbar,
+  body.embed #toast, body.embed #blockedModal { display: none !important; }
+  body.embed #main { top: 0; padding: 0; gap: 0; }
+  body.embed #chartWrap { border: none; border-radius: 0; background: transparent; }
+  body.embed #zoomIndicator { display: none !important; }
+  body.embed .empty-hint { display: none; }
+  body.embed .empty-icon { font-size: 1.4rem; }
+  body.embed .empty-text { font-size: 0.7rem; }
 </style>
 </head>
 <body>
+<script>if (new URLSearchParams(location.search).get('embed') === '1') document.body.classList.add('embed');</script>
 
 <!-- ── HEADER ─────────────────────────────── -->
 <header id="header">
@@ -1100,18 +1112,25 @@ const peakLabelsPlugin = {
 /* ═══════════════════════════════════════════════════
    차트 초기화 (한 번만 생성, 이후 update로 갱신)
    ═══════════════════════════════════════════════════ */
+function isEmbedMode() { return document.body.classList.contains('embed'); }
+
+/* 임베드 모드: 30분 간격으로 표시할 X축 눈금 인덱스 */
+let embedTickIdx = new Set();
+
 function ensureChart() {
   if (chartInst) return;
+  const embed = isEmbedMode();
   chartInst = new Chart(document.getElementById('curingCanvas'), {
     type: 'line',
     data: { labels:[], datasets:[] },
     options: {
       responsive: true, maintainAspectRatio: false,
       animation: false,           /* 팬 중 깜빡임 완전 제거 */
-      layout: { padding:{ right:56 } },
+      layout: { padding: embed ? { top:6, right:2, bottom:2, left:2 } : { right:56 } },
       plugins: {
         legend: { display:false },
         tooltip: {
+          enabled: !embed,
           mode:'index', intersect:false,
           bodyFont:{ size:10 },
           callbacks: { title: items => { const r=currentViewRows[items[0]?.dataIndex]; return r?r.time:items[0]?.label||''; } }
@@ -1120,23 +1139,27 @@ function ensureChart() {
       scales: {
         x: {
           grid: { display:false },
-          ticks: { color:'rgba(240,244,255,0.45)', font:{size:8}, maxTicksLimit:16 }
+          /* 임베드: 날짜 없이 시간만, 30분 간격 눈금 */
+          ticks: embed
+            ? { color:'rgba(240,244,255,0.6)', font:{size:8}, maxRotation:0, autoSkip:false,
+                callback: function (value, index) { return embedTickIdx.has(index) ? this.getLabelForValue(value) : null; } }
+            : { color:'rgba(240,244,255,0.45)', font:{size:8}, maxTicksLimit:16 }
         },
         yTemp: {
           type:'linear', position:'left', min:17, max:29, display:true,
           grid: { color:'rgba(255,255,255,0.05)' },
-          title: { display:true, text:'온도 (°C)', color:'#ff6b6b', font:{size:9,weight:600} },
+          title: { display:!embed, text:'온도 (°C)', color:'#ff6b6b', font:{size:9,weight:600} },
           ticks: { color:'#ff6b6b', font:{size:8}, stepSize:2 }
         },
         yHumid: {
           type:'linear', position:'right', min:40, max:100, display:true,
           grid: { display:false },
-          title: { display:true, text:'습도 (%)', color:'#54a0ff', font:{size:9,weight:600} },
+          title: { display:!embed, text:'습도 (%)', color:'#54a0ff', font:{size:9,weight:600} },
           ticks: { color:'#54a0ff', font:{size:8}, stepSize:10 }
         }
       }
     },
-    plugins: [targetLinesPlugin, peakLabelsPlugin]
+    plugins: embed ? [] : [targetLinesPlugin, peakLabelsPlugin]   /* 임베드: 파형만 */
   });
 }
 
@@ -1162,7 +1185,23 @@ function drawChart() {
   const showDate = spanMs > 86400000;
   const wrapW    = document.getElementById('chartWrap').offsetWidth || 900;
   const maxTicks = Math.max(6, Math.min(20, Math.floor(wrapW/75)));
-  const labels   = viewRows.map(r => showDate ? r.time.slice(5,16) : r.time.slice(11,16));
+  /* 임베드: 날짜 없이 시간(HH:MM)만 표시 */
+  const labels   = isEmbedMode()
+    ? viewRows.map(r => r.time.slice(11,16))
+    : viewRows.map(r => showDate ? r.time.slice(5,16) : r.time.slice(11,16));
+
+  /* 임베드: 30분 경계가 바뀌는 지점만 눈금으로 표시 */
+  if (isEmbedMode()) {
+    embedTickIdx = new Set();
+    let lastBucket = null;
+    viewRows.forEach((r, i) => {
+      const h = parseInt(r.time.slice(11,13), 10), m = parseInt(r.time.slice(14,16), 10);
+      if (isNaN(h) || isNaN(m)) return;
+      const bucket = r.time.slice(0,10) + '-' + (h * 2 + (m >= 30 ? 1 : 0));
+      if (lastBucket !== null && bucket !== lastBucket) embedTickIdx.add(i);
+      lastBucket = bucket;
+    });
+  }
 
   const datasets = [];
   currentDsInfo  = [];
@@ -1177,14 +1216,14 @@ function drawChart() {
       for (const v of temps)  { if (v!=null) { if (v<minT) minT=v; if (v>maxT) maxT=v; } }
       datasets.push({ label:`${rn}호 온도`, data:temps,
         borderColor:TEMP_COLORS[i], backgroundColor:TEMP_COLORS[i]+'18',
-        borderWidth:1.8, pointRadius:0, pointHoverRadius:4, tension:0.3, yAxisID:'yTemp' });
+        borderWidth:isEmbedMode()?1.1:1.8, pointRadius:0, pointHoverRadius:4, tension:0.3, yAxisID:'yTemp' });
       currentDsInfo.push({ data:temps,  yAxisID:'yTemp',  color:TEMP_COLORS[i] });
     }
     if (state.humidRooms[i]) {
       for (const v of humids) { if (v!=null) { if (v<minH) minH=v; if (v>maxH) maxH=v; } }
       datasets.push({ label:`${rn}호 습도`, data:humids,
         borderColor:HUMID_COLORS[i], backgroundColor:HUMID_COLORS[i]+'18',
-        borderWidth:1.5, pointRadius:0, pointHoverRadius:4, tension:0.3, yAxisID:'yHumid' });
+        borderWidth:isEmbedMode()?1:1.5, pointRadius:0, pointHoverRadius:4, tension:0.3, yAxisID:'yHumid' });
       currentDsInfo.push({ data:humids, yAxisID:'yHumid', color:HUMID_COLORS[i] });
     }
   }
@@ -1210,7 +1249,7 @@ function drawChart() {
   chartInst.options.scales.yHumid.min     = humidAxisMin;
   chartInst.options.scales.yHumid.max     = humidAxisMax;
   chartInst.options.scales.yHumid.display = currentShowH;
-  chartInst.options.scales.x.ticks.maxTicksLimit = maxTicks;
+  if (!isEmbedMode()) chartInst.options.scales.x.ticks.maxTicksLimit = maxTicks;
 
   /* 애니메이션 없이 즉시 렌더 (프레임 점프 없음) */
   chartInst.update('none');
