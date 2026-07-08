@@ -57,15 +57,6 @@
   .hdr-left, .hdr-right { display: flex; align-items: center; gap: 12px; }
   .hdr-right { justify-content: flex-end; }
 
-  .back-btn {
-    display: flex; align-items: center; justify-content: center;
-    width: 32px; height: 32px; border-radius: 6px;
-    text-decoration: none; font-size: 1.1rem; color: var(--hdr-text-sec);
-    background: rgba(0,0,0,0.04); transition: all .15s;
-    margin-right: 4px; flex-shrink: 0;
-  }
-  .back-btn:hover { background: rgba(0,0,0,0.08); color: var(--hdr-text); }
-
   #projectTitle {
     font-size: 1.0625rem; font-weight: 700; color: var(--hdr-text);
     cursor: pointer; padding: 4px 8px; border-radius: 4px;
@@ -136,73 +127,6 @@
   .hdr-btn:hover { border-color: var(--hdr-accent); color: var(--hdr-accent); background: #f0fdf4; }
   .hdr-btn.upload { border-color: var(--hdr-accent); color: var(--hdr-accent); background: #f0fdf4; }
   .hdr-btn.upload:hover { background: #dcfce7; }
-
-  /* ── ADMIN TOOLBAR (grouped buttons) ────────── */
-  .admin-toolbar {
-    display: none; /* shown via JS in admin mode */
-    align-items: center; gap: 0;
-    background: #f4f6f8;
-    border: 0.5px solid rgba(0,0,0,0.1);
-    border-radius: 8px;
-    padding: 2px;
-    height: 34px;
-  }
-  .admin-toolbar .tb-btn {
-    display: flex; align-items: center; gap: 4px;
-    background: transparent; border: none; cursor: pointer;
-    font-size: 0.625rem; font-weight: 500; color: #4b5563;
-    padding: 4px 10px; border-radius: 6px;
-    transition: all .15s; font-family: inherit;
-    white-space: nowrap; height: 28px;
-  }
-  .admin-toolbar .tb-btn:hover {
-    background: #ffffff; color: var(--hdr-accent);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  }
-  .admin-toolbar .tb-btn:active { transform: scale(0.97); }
-  .admin-toolbar .tb-sep {
-    width: 1px; height: 18px; background: rgba(0,0,0,0.1);
-    flex-shrink: 0;
-  }
-
-  /* ── HISTORY PILL TOGGLE ────────────────────── */
-  .history-toggle {
-    display: flex; align-items: center; gap: 0;
-    background: #f0f1f3;
-    border: 0.5px solid rgba(0,0,0,0.1);
-    border-radius: 7px;
-    padding: 2px;
-    height: 30px;
-  }
-  .history-toggle .ht-btn {
-    display: flex; align-items: center; justify-content: center;
-    background: transparent; border: none; cursor: pointer;
-    font-size: 0.625rem; font-weight: 600; color: #9ca3af;
-    padding: 3px 12px; border-radius: 5px;
-    transition: all .18s ease; font-family: inherit;
-    white-space: nowrap; height: 24px; letter-spacing: 0.3px;
-  }
-  .history-toggle .ht-btn.active {
-    background: #ffffff; color: var(--hdr-accent);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 0 0 0.5px rgba(15,110,86,0.15);
-  }
-  .history-toggle .ht-btn:not(.active):hover {
-    color: #6b7280; background: rgba(255,255,255,0.5);
-  }
-
-  /* ── TOTAL BADGE (inside todayShip panel header) ── */
-  .total-badge {
-    display: inline-flex; align-items: center; gap: 4px;
-    background: rgba(26,223,139,0.1); border: 0.5px solid rgba(26,223,139,0.25);
-    border-radius: 5px; padding: 2px 8px;
-    font-size: 0.5625rem; color: var(--accent); font-weight: 600;
-    letter-spacing: 0.5px; line-height: 1;
-  }
-  .total-badge .tb-num {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 0.8125rem; letter-spacing: 1px;
-    color: var(--text-pri); font-weight: 700;
-  }
 
   /* ── BOARD (FREE LAYOUT) ─────────────────────── */
   #board {
@@ -461,7 +385,44 @@
   }
   .snap-guide.show { opacity: 0.85; }
 
-  /* Removed UPLOAD DROPDOWN */
+  /* ── UPLOAD DROPDOWN ────────────────────────── */
+  .upload-dropdown {
+    position: relative;
+    display: inline-block;
+  }
+  .upload-dropdown-content {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 0;
+    background-color: #111c2e;
+    min-width: 170px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.5);
+    border: 0.5px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    z-index: 200;
+  }
+  .upload-dropdown-content label {
+    color: var(--text-pri);
+    padding: 8px 14px;
+    text-decoration: none;
+    display: block;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background-color .15s, color .15s;
+    border-bottom: 0.5px solid rgba(255,255,255,0.05);
+  }
+  .upload-dropdown-content label:last-child {
+    border-bottom: none;
+  }
+  .upload-dropdown-content label:hover {
+    background-color: rgba(26,223,139,0.08);
+    color: var(--accent);
+  }
+  .upload-dropdown:hover .upload-dropdown-content {
+    display: block;
+  }
 
   /* Toast */
   #toast {
@@ -480,38 +441,38 @@
 <!-- ── HEADER ───────────────────────────────── -->
 <header id="header">
   <div class="hdr-left">
-    <a href="../index.html" class="back-btn" title="포털 화면으로 돌아가기">◀</a>
+    <button class="hdr-btn" onclick="goToPortal()" type="button" title="포털 화면으로 돌아가기" style="padding: 6px 12px; font-weight: 600; font-size: 0.75rem; border-color: rgba(0,0,0,0.15); background: #ffffff;">⬅</button>
     <div id="logoCenter" title="">
       <img id="logoImg" alt="">
       <!-- 헤더 직접 수정 기능 제거됨 (설정 메뉴 통합) -->
     </div>
-    <span id="liveClock"></span>
+    <span id="liveClock" style="margin-left: 4px;"></span>
   </div>
 
   <div class="hdr-center">
     <span id="projectTitle">SK 영등포 양평동 프로젝트</span>
-    <div class="ref-date-block" id="refDateBlock" title="기준일 변경" style="margin-left:8px;">
-      <div class="ref-date-lbl">기준일</div>
-      <div class="ref-date-val" id="refDateDisplay">—</div>
-    </div>
   </div>
 
   <div class="hdr-right">
-    <button class="hdr-btn" onclick="window.open('temp.html', '_blank')" title="온습도 모니터링 창 열기" style="margin-right: 4px;">🌡️ 온습도</button>
-    <div class="history-toggle" id="historyToggle">
-      <button class="ht-btn active" data-tab="site" onclick="switchHistoryTab('site')">현장</button>
-      <button class="ht-btn" data-tab="all" onclick="switchHistoryTab('all')">종합</button>
+    <div class="ref-date-block" id="refDateBlock" title="기준일 변경" style="margin-right: 4px;">
+      <div class="ref-date-lbl">기준일</div>
+      <div class="ref-date-val" id="refDateDisplay">—</div>
     </div>
-    <div class="admin-toolbar" id="adminToolbar">
-      <label for="xlsxInput" class="tb-btn" style="cursor:pointer;">📊 업로드</label>
-      <div class="tb-sep"></div>
-      <button class="tb-btn" id="serverSaveBtn" onclick="exportServerData()">💾 저장</button>
-      <div class="tb-sep"></div>
-      <button class="tb-btn" id="resetLayoutBtn" onclick="resetLayout()">↻ 배치</button>
-      <div class="tb-sep"></div>
-      <button class="tb-btn" id="settingsBtn" onclick="openSettings()">⚙ 설정</button>
+    <div class="ref-date-block" id="historySelectBlock" title="저장 이력 선택" style="border: 0.5px solid rgba(0,0,0,0.1); background: #f9fafb; margin-right: 2px; height: 38px; display: flex; align-items: center; justify-content: center; padding: 0 10px;">
+      <select id="historySelect" onchange="changeHistoryFile(this.value)" style="background: transparent; border: none; color: var(--hdr-text); font-size: 0.75rem; font-weight: 600; outline: none; cursor: pointer; max-width: 150px; font-family: inherit;">
+        <option value="현장">현장</option>
+        <option value="종합">종합</option>
+      </select>
     </div>
+    <div class="total-block">
+      <div class="total-lbl">총수량</div>
+      <div class="total-val" id="totalDisplay">2025</div>
+    </div>
+    <button class="hdr-btn upload" onclick="document.getElementById('xlsxInput').click()" type="button" title="생산실적 엑셀 데이터 업로드">📊 데이터 업로드</button>
     <input type="file" id="xlsxInput" accept=".xlsx,.xls">
+    <button class="hdr-btn" id="serverSaveBtn" onclick="exportServerData()" title="현재 상태를 data.json으로 다운로드 (관리자용)" style="display:none">💾 서버 저장</button>
+    <button class="hdr-btn" id="resetLayoutBtn" onclick="resetLayout()" title="공용 배치(data.json)로 복귀 — 없으면 초기 배치" style="display:none">↻ 배치</button>
+    <button class="hdr-btn" id="settingsBtn" onclick="openSettings()" style="display:none">⚙ 설정</button>
   </div>
 </header>
 
@@ -546,9 +507,9 @@
       </div>
     </div>
     <div class="modal-body">
-      <!-- 데이터파일명 (데이터파일연결) 읽기 전용 안내 -->
+      <!-- 현재 프로젝트 번호 (데이터 파일) 읽기 전용 안내 -->
       <div class="s-group" id="sProjectNoGroup">
-        <label>데이터파일명 (데이터파일연결)</label>
+        <label>프로젝트 번호 (데이터 파일 연결)</label>
         <div id="sProjectNoDisplay" style="
           background: rgba(26,223,139,0.04);
           border: 0.5px solid rgba(26,223,139,0.2);
@@ -574,6 +535,14 @@
            <span id="sLogoPathDisplay" style="flex:1; align-self:center; font-size:0.75rem; color:var(--text-sec); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">로고가 선택되지 않았습니다</span>
         </div>
         <input type="file" id="sLogoInput" accept="image/*" style="display:none;">
+      </div>
+      <div class="s-group">
+        <label>공통 생산실적 데이터 업로드 (모든 현장 공용)</label>
+        <div style="display:flex; gap:8px;">
+           <button type="button" class="btn-ghost" onclick="document.getElementById('sXlsxInput').click()" style="flex:0 0 auto; width:auto; padding:8px 12px;">파일 선택 (.xlsx, .xls) ▾</button>
+           <span id="sXlsxPathDisplay" style="flex:1; align-self:center; font-size:0.75rem; color:var(--text-sec); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">데이터가 선택되지 않았습니다</span>
+        </div>
+        <input type="file" id="sXlsxInput" accept=".xlsx,.xls" style="display:none;">
       </div>
       <div class="s-group">
         <label>프로젝트명</label>
@@ -607,20 +576,6 @@
         <label>서버 저장 비밀번호</label>
         <input type="password" id="sServerPassword" placeholder="기본 비밀번호: 1234">
       </div>
-
-      <!-- ── 종합 공사 데이터 구분선 ── -->
-      <div style="margin: 20px 0 14px; border-top: 0.5px solid rgba(255,255,255,0.1); padding-top: 16px;">
-        <div style="font-size: 0.6875rem; color: var(--accent); font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px;">▎ 종합 공사 데이터 (data.json)</div>
-        <div class="s-group" style="margin-bottom: 0;">
-          <label>종합 엑셀 업로드 — "종합" 탭에서 사용하는 데이터</label>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <button type="button" class="btn-ghost" onclick="document.getElementById('sSumExcelInput').click()" style="flex:0 0 auto; width:auto; padding:8px 14px;">📊 파일 선택 ▾</button>
-            <span id="sSumExcelDisplay" style="flex:1; font-size:0.75rem; color:var(--text-sec); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">선택된 파일 없음</span>
-          </div>
-          <input type="file" id="sSumExcelInput" accept=".xlsx,.xls" style="display:none;">
-          <div style="margin-top:6px; font-size:0.625rem; color:var(--text-dim);">업로드 즉시 data.json에 저장됩니다. "종합" 탭 선택 시 이 데이터가 표시됩니다.</div>
-        </div>
-      </div>
     </div>
   </div>
 </div>
@@ -644,26 +599,12 @@
 
 <script>
 /* ════════════════════════════════════════════
-   TOAST
-   ════════════════════════════════════════════ */
-let _toastTimer = null;
-function showToast(msg, duration = 3000) {
-  const el = document.getElementById('toast');
-  if (!el) return;
-  el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => el.classList.remove('show'), duration);
-}
-
-/* ════════════════════════════════════════════
    STATE
    ════════════════════════════════════════════ */
 const state = {
   projectName: 'SK 영등포 양평동 프로젝트',
   orderNo: '',
   logoSrc: '',
-  activeTab: 'site',   // 마지막으로 저장/로드된 탭 ('site' | 'all')
   totalQty: 2025,
   floorStart: 3,
   floorEnd: 17,
@@ -693,6 +634,15 @@ const PANEL_DEFS = [
 ];
 
 let charts = {};
+
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  if (el) {
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+  }
+}
 
 function getProjectFilename() {
   const params = new URLSearchParams(window.location.search);
@@ -856,116 +806,162 @@ function ensurePercentageLayout() {
   }
 }
 
-// 현재 로드된 파일명 추적
+// 전역 저장 이력 상태 변수 추가
 state.loadedFilename = '';
 
-async function loadServerData(selectedFilename = null) {
+async function loadServerData(selectedMode = null) {
   const params = new URLSearchParams(window.location.search);
   const project = params.get('project') || '';
   const safeProject = project.replace(/[^a-zA-Z0-9_-]/g, '');
 
-  // ── 명시적으로 파일이 지정된 경우 (현장/종합 탭 직접 선택) ──────────
-  if (selectedFilename) {
+  let mode = selectedMode;
+
+  // 최초 로드 시(selectedMode가 없을 때) '현장' 데이터와 '종합' 데이터의 이력을 파악하여 불러옵니다.
+  if (!mode) {
+    let projectData = null;
+    let commonData = null;
+    
+    const projectFile = safeProject ? `data_${safeProject}.json` : 'data.json';
+    const commonFile = 'data_common.json';
+
+    // 1. 현장 파일 로드 시도
     try {
-      const res = await fetch('./' + selectedFilename, { cache: 'no-cache' });
-      if (!res.ok) return false;
-      const d = await res.json();
-      applyLoadedData(d);
-      state.loadedFilename = selectedFilename;
-      syncHistorySelectValue();
-      console.log(`[server] Loaded (explicit): ${selectedFilename}`);
-      return true;
-    } catch(e) {
-      console.error(`[server] Error loading ${selectedFilename}:`, e);
-      return false;
+      const res = await fetch('./' + projectFile, { cache: 'no-cache' });
+      if (res.ok) {
+        projectData = await res.json();
+      }
+    } catch (e) {
+      console.warn(`[server] Initial check - Project file load failed:`, e);
     }
-  }
 
-  // ── 초기 로드: data_[번호].json 기준 → savedTab으로 분기 ─────────
-  if (safeProject) {
-    const siteFile = `data_${safeProject}.json`;
-    const allFile  = 'data.json';
-
+    // 2. 종합 파일 로드 시도
     try {
-      const siteRes = await fetch('./' + siteFile, { cache: 'no-cache' });
+      const res = await fetch('./' + commonFile, { cache: 'no-cache' });
+      if (res.ok) {
+        commonData = await res.json();
+      }
+    } catch (e) {
+      console.warn(`[server] Initial check - Common file load failed:`, e);
+    }
 
-      if (siteRes.ok) {
-        let siteData = null;
-        try { siteData = await siteRes.json(); } catch(e) {}
-
-        if (siteData) {
-          // 설정은 항상 현장 파일에서 로드
-          applyLoadedData(siteData);
-
-          if (siteData.savedTab === 'all') {
-            // 종합 탭 → data.json에서 rows만 교체
-            try {
-              const allRes = await fetch('./' + allFile, { cache: 'no-cache' });
-              if (allRes.ok) {
-                const allData = await allRes.json();
-                applyLoadedDataRowsOnly(allData);
-                state.loadedFilename = allFile;
-                console.log(`[server] Settings from ${siteFile}, rows from ${allFile} (savedTab=all)`);
-              } else {
-                // data.json 없으면 현장 파일 rows 그대로
-                state.loadedFilename = siteFile;
-                console.log(`[server] Settings+rows from ${siteFile} (data.json not found, fallback)`);
-              }
-            } catch(e) {
-              state.loadedFilename = siteFile;
-              console.warn('[server] data.json 로드 실패, 현장 파일 rows 사용:', e);
-            }
-            state.activeTab = 'all';
-          } else {
-            // 현장 탭 (savedTab === 'site' 또는 값 없음)
-            state.loadedFilename = siteFile;
-            state.activeTab = 'site';
-            console.log(`[server] Settings+rows from ${siteFile} (savedTab=site)`);
-          }
-
-          syncHistorySelectValue();
-          return true;
+    // 현장 파일 내부에 저장되어 있는 이력 모드(viewMode) 설정에 맞춰 로드 결정
+    if (projectData) {
+      const savedViewMode = projectData.viewMode || '현장';
+      
+      if (savedViewMode === '종합') {
+        // 마지막 저장 상태가 '종합'이었던 경우 -> 현장 설정을 로드하고, rows는 종합 파일의 것으로 채웁니다.
+        mode = '종합';
+        applyLoadedData(projectData); // 현장 고유 설정 복원
+        if (commonData && commonData.rows) {
+          state.rows = commonData.rows; // rows만 공통 데이터로 적용
         }
+        if (commonData && commonData.tempHumidRows) {
+          state.tempHumidRows = commonData.tempHumidRows;
+        }
+      } else {
+        // 마지막 저장 상태가 '현장'이었던 경우 -> 현장 파일의 모든 데이터(설정+rows) 적용
+        mode = '현장';
+        applyLoadedData(projectData);
+      }
+    } else if (commonData) {
+      // 현장 파일이 아예 없고 종합 파일만 있는 경우
+      mode = '종합';
+      if (commonData.rows) {
+        state.rows = commonData.rows;
+      }
+      if (commonData.tempHumidRows) {
+        state.tempHumidRows = commonData.tempHumidRows;
+      }
+    } else {
+      // 둘 다 없을 경우 fallback으로 data.json 시도
+      try {
+        const res = await fetch('./data.json', { cache: 'no-cache' });
+        if (res.ok) {
+          const d = await res.json();
+          applyLoadedData(d);
+          mode = '현장';
+        }
+      } catch (e) {
+        console.warn(`[server] Initial check - data.json fallback failed:`, e);
+      }
+    }
+
+    if (mode) {
+      state.loadedFilename = mode;
+      syncHistorySelectValue();
+      if (mode === '종합' && project) {
+        state.orderNo = project;
       }
 
-      // 현장 파일 없으면 data.json 직접 로드
-      try {
-        const allRes = await fetch('./' + allFile, { cache: 'no-cache' });
-        if (allRes.ok) {
-          const allData = await allRes.json();
-          applyLoadedData(allData);
-          state.loadedFilename = allFile;
-          syncHistorySelectValue();
-          console.log(`[server] Loaded from ${allFile} (no site file)`);
-          return true;
-        }
-      } catch(e) {}
-      return false;
-    } catch(e) {
-      console.error('[server] Error during load:', e);
-      return false;
+      // 화면 로드 시 기준일을 오늘 날짜로 강제 설정
+      state.refDate = new Date();
+      state.refDate.setHours(0,0,0,0);
+
+      console.log(`[server] Auto-loaded latest via viewMode: ${mode}`);
+      return true;
     }
+    return false;
   }
 
-  // ── project 파라미터 없는 경우 data.json 직접 로드 ────────────────────
+  // 수동 선택 변경 시 (기존 로직 유지)
+  let targetFile = '';
+  if (mode === '현장') {
+    targetFile = safeProject ? `data_${safeProject}.json` : 'data.json';
+  } else if (mode === '종합') {
+    targetFile = 'data_common.json';
+  }
+
   try {
-    const res = await fetch('./data.json', { cache: 'no-cache' });
-    if (!res.ok) return false;
-    const d = await res.json();
-    applyLoadedData(d);
-    state.loadedFilename = 'data.json';
-    syncHistorySelectValue();
-    console.log('[server] Loaded data from data.json');
-    return true;
+    let res = await fetch('./' + targetFile, { cache: 'no-cache' });
+    if (!res.ok) {
+      if (mode === '현장') {
+        console.warn(`[server] 현장 파일(${targetFile}) 로드 실패. 종합(data_common.json) 로드 시도.`);
+        res = await fetch('./data_common.json', { cache: 'no-cache' });
+        if (!res.ok) {
+          console.warn(`[server] data_common.json 로드 실패. data.json 로드 시도.`);
+          res = await fetch('./data.json', { cache: 'no-cache' });
+        }
+        if (res.ok) {
+          mode = '종합';
+        }
+      } else if (mode === '종합') {
+        console.warn(`[server] 종합 파일(${targetFile}) 로드 실패. data.json 로드 시도.`);
+        res = await fetch('./data.json', { cache: 'no-cache' });
+      }
+    }
+
+    if (res && res.ok) {
+      const d = await res.json();
+      if (mode === '종합') {
+        // 종합 파일 로드 시에는 혹시 남아 있을 옛날 고유 설정들은 무시하고 오직 엑셀 데이터(rows)만 병합 적용합니다.
+        if (d.rows) state.rows = d.rows;
+        if (d.tempHumidRows) state.tempHumidRows = d.tempHumidRows;
+      } else {
+        applyLoadedData(d);
+      }
+      state.loadedFilename = mode;
+      syncHistorySelectValue();
+
+      if (mode === '종합' && project) {
+        state.orderNo = project;
+      }
+
+      // 저장 이력 변경 시에도 기준일을 오늘 날짜로 강제 설정
+      state.refDate = new Date();
+      state.refDate.setHours(0,0,0,0);
+
+      console.log(`[server] Loaded data from ${res.url} (Mode: ${mode})`);
+      return true;
+    }
+    return false;
   } catch (e) {
-    console.error('[server] Error loading data.json:', e);
+    console.error(`[server] Error loading data for mode ${mode}:`, e);
     return false;
   }
 }
 
 // 로드한 데이터를 state에 매핑하는 보조 함수
 function applyLoadedData(d) {
-  if (d.savedTab) state.activeTab = d.savedTab;   // 저장 당시 탭 복원
   if (d.projectName) state.projectName = d.projectName;
   if (d.orderNo !== undefined) state.orderNo = d.orderNo;
   if (d.logoSrc)     state.logoSrc = d.logoSrc;
@@ -985,99 +981,52 @@ function applyLoadedData(d) {
     ensurePercentageLayout();
   }
   if (Array.isArray(d.rows)) state.rows = d.rows;
-  // refDate는 항상 오늘 날짜를 기본값으로 사용 (사용자가 수동으로 변경 가능)
-  // if (d.refDate) {
-  //   const rd = new Date(d.refDate);
-  //   if (!isNaN(rd)) state.refDate = rd;
-  // }
+  if (d.refDate) {
+    const rd = new Date(d.refDate);
+    if (!isNaN(rd)) state.refDate = rd;
+  }
 }
 
-// 종합 탭 전용 — rows만 교체, 설정값(projectName/totalQty 등)은 건드리지 않음
-function applyLoadedDataRowsOnly(d) {
-  if (d.savedTab) state.activeTab = d.savedTab;   // 저장 당시 탭 복원
-  if (Array.isArray(d.rows)) state.rows = d.rows;
-  if (Array.isArray(d.tempHumidRows)) state.tempHumidRows = d.tempHumidRows;
-}
-
-// 현재 로드된 파일과 pill 토글 상태 일치화
+// 현재 로드된 파일과 드롭다운 value 일치화
 function syncHistorySelectValue() {
-  const tab = state.activeTab || (state.loadedFilename === 'data.json' ? 'all' : 'site');
-  const btns = document.querySelectorAll('#historyToggle .ht-btn');
-  btns.forEach(btn => {
-    if (btn.dataset.tab === tab) btn.classList.add('active');
-    else btn.classList.remove('active');
-  });
+  const select = document.getElementById('historySelect');
+  if (select && state.loadedFilename) {
+    select.value = state.loadedFilename;
+  }
 }
 
-async function changeHistoryFile(val) {
-  if (!val) return;
-
-  if (val === 'site') {
-    // 현장 탭: 현장 파일 전체 로드 (설정 + rows)
-    const success = await loadServerData(getProjectFilename());
-    if (success) {
-      // 사용자가 명시적으로 현장 탭을 선택했으므로 activeTab 강제 지정
-      state.activeTab = 'site';
-      syncHistorySelectValue();
-      renderAll();
-      applyLayout();
-      Object.values(charts).forEach(c => { try { c.resize(); } catch(e) {} });
-      setTimeout(() => renderProcessChart(), 60);
-      showToast('현장 데이터를 불러왔습니다.');
-    } else {
-      alert('데이터를 로드하는 데 실패했습니다.');
-    }
+async function changeHistoryFile(mode) {
+  if (!mode) return;
+  const success = await loadServerData(mode);
+  if (success) {
+    renderAll();
+    applyLayout();
+    Object.values(charts).forEach(c => { try { c.resize(); } catch(e) {} });
+    setTimeout(() => renderProcessChart(), 60);
+    showToast(`✓ ${mode} 데이터를 불러왔습니다.`);
   } else {
-    // 종합 탭: rows만 교체, 설정값(프로젝트명/총수량 등)은 현장 파일 것 유지
-    try {
-      const res = await fetch('./data.json', { cache: 'no-cache' });
-      if (!res.ok) { alert('종합 데이터를 로드하는 데 실패했습니다.'); return; }
-      const d = await res.json();
-      applyLoadedDataRowsOnly(d);
-      state.loadedFilename = 'data.json';
-      // 사용자가 명시적으로 종합 탭을 선택했으므로 activeTab 강제 지정
-      state.activeTab = 'all';
-      syncHistorySelectValue();
-      renderAll();
-      applyLayout();
-      Object.values(charts).forEach(c => { try { c.resize(); } catch(e) {} });
-      setTimeout(() => renderProcessChart(), 60);
-      showToast('종합 데이터를 불러왔습니다.');
-    } catch(e) {
-      alert('종합 데이터를 로드하는 데 실패했습니다.');
-    }
+    alert(`${mode} 데이터를 로드하는 데 실패했습니다.`);
   }
 }
 window.changeHistoryFile = changeHistoryFile;
 
-function switchHistoryTab(tab) {
-  // pill 토글 UI 즉시 업데이트
-  const btns = document.querySelectorAll('#historyToggle .ht-btn');
-  btns.forEach(btn => {
-    if (btn.dataset.tab === tab) btn.classList.add('active');
-    else btn.classList.remove('active');
-  });
-  changeHistoryFile(tab);
+function goToPortal() {
+  window.location.href = '../index1.html';
 }
-window.switchHistoryTab = switchHistoryTab;
+window.goToPortal = goToPortal;
 
 async function exportServerData() {
   const params = new URLSearchParams(window.location.search);
   const project = params.get('project') || '';
-  const rawProject = project.replace(/[^a-zA-Z0-9_-]/g, '');
+  const safeProject = project.replace(/[^a-zA-Z0-9_-]/g, '');
 
-  // 현장/종합 탭에 따라 저장 위치 결정
-  // 종합 탭 → X-Dashboard-Project 비워서 data.json 저장
-  // 현장 탭 → data_[project].json 저장
-  const activeBtn = document.querySelector('#historyToggle .ht-btn.active');
-  const currentTab = (activeBtn && activeBtn.dataset.tab) || state.activeTab || 'site';   // 'site' | 'all'
-  const safeProject = currentTab === 'all' ? '' : rawProject;
-  state.activeTab = currentTab;   // state 동기화
+  // 대시보드 메인 화면 저장(레이아웃 등)은 공통 파일 오염 방지를 위해 항상 현장 전용 파일로 저장합니다.
+  const targetProject = safeProject;
 
   const payload = {
     schema: 'production-dashboard.v1',
     savedAt: new Date().toISOString(),
-    savedTab: currentTab,          // ← 저장 당시 탭 기록
+    viewMode: state.loadedFilename || '현장', // 현재 보고 있는 '현장'/'종합' 상태 기록
     projectName: state.projectName,
     orderNo: state.orderNo,
     logoSrc: state.logoSrc,
@@ -1092,11 +1041,11 @@ async function exportServerData() {
     rows: state.rows,
     tempHumidRows: state.tempHumidRows,
   };
-
+  
   const json = JSON.stringify(payload, null, 2);
   const pwd = localStorage.getItem('dashboard_password') || '1234';
   const btn = document.getElementById('serverSaveBtn');
-  const origText = btn ? btn.innerHTML : '💾 저장';
+  const origText = btn ? btn.innerHTML : '💾 서버 저장';
 
   if (btn) {
     btn.innerHTML = '⚡ 저장 중...';
@@ -1109,7 +1058,7 @@ async function exportServerData() {
       headers: {
         'Content-Type': 'application/json',
         'X-Dashboard-Password': pwd,
-        'X-Dashboard-Project': safeProject
+        'X-Dashboard-Project': targetProject
       },
       body: json
     });
@@ -1121,34 +1070,8 @@ async function exportServerData() {
       if (res.ok && resData.success) {
         const savedFile = resData.filename || '';
         if (savedFile) {
-          state.loadedFilename = savedFile;
+          state.loadedFilename = payload.viewMode; // 저장한 당시의 이력 모드('현장'/'종합')를 그대로 적용
           syncHistorySelectValue();
-        }
-
-        // 종합 탭 서버저장 시 → data_[번호].json의 savedTab도 'all'로 업데이트
-        // 현장 탭은 data_[번호].json에 직접 저장하므로 savedTab이 이미 'site'로 기록됨
-        if (currentTab === 'all' && rawProject) {
-          try {
-            const siteRes2 = await fetch(`./data_${rawProject}.json`, { cache: 'no-cache' });
-            if (siteRes2.ok) {
-              const siteData2 = await siteRes2.json();
-              siteData2.savedTab = 'all';
-              siteData2.savedAt  = new Date().toISOString();
-              await fetch('./save_data.php', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'X-Dashboard-Password': pwd,
-                  'X-Dashboard-Project': rawProject,
-                  'X-Dashboard-Mode': 'main'
-                },
-                body: JSON.stringify(siteData2, null, 2)
-              });
-              console.log(`[server-save] savedTab=all 업데이트: data_${rawProject}.json`);
-            }
-          } catch(e) {
-            console.warn('[server-save] savedTab 업데이트 실패:', e);
-          }
         }
 
         if (btn) {
@@ -1317,6 +1240,7 @@ function renderAll() {
   const titleText = state.projectName;
   document.title = titleText;
   document.getElementById('projectTitle').textContent = titleText;
+  document.getElementById('totalDisplay').textContent = state.totalQty.toLocaleString();
   document.getElementById('refDateDisplay').textContent = fmtDate(state.refDate);
   renderLogo();
   renderProgress();
@@ -1403,11 +1327,6 @@ function renderTodayShip() {
     <div class="today-val">${cnt}</div>
   </div>`;
   document.getElementById('todayWrap').addEventListener('click', openRefDatePicker);
-  // 총수량 뱃지를 패널 헤더 actions 영역에 표시
-  const actions = document.getElementById('p3-actions');
-  if (actions) {
-    actions.innerHTML = `<div class="total-badge">총 <span class="tb-num">${state.totalQty.toLocaleString()}</span></div>`;
-  }
 }
 
 /* ── Panel 6: Notes ── */
@@ -2032,118 +1951,10 @@ document.getElementById('xlsxInput').addEventListener('change', function(e) {
       const wb = XLSX.read(ev.target.result, {type:'array', cellDates:true});
       const ws = wb.Sheets[wb.SheetNames[0]];
       state.rows = XLSX.utils.sheet_to_json(ws, {raw:false, dateNF:'yyyy-mm-dd hh:mm:ss'});
-
-      // 업로드 완료 → 현장 탭으로 전환
-      state.activeTab = 'site';
-      state.loadedFilename = getProjectFilename();
-      syncHistorySelectValue();
       renderAll();
-
-      // 서버 자동 저장 — URL 프로젝트 번호 기반으로 현장 파일(data_[project].json)에만 저장
-      // (exportServerData 는 historySelect 값을 읽어 저장 위치가 달라질 수 있으므로 사용 안 함)
-      await saveSettingsToServer();
+      // 업로드 후 즉시 현장 데이터로 서버 저장
+      await saveSettingsToServer('site');
     } catch(err) { alert('파일을 읽을 수 없습니다: ' + err.message); }
-  };
-  reader.readAsArrayBuffer(file);
-  e.target.value = '';
-});
-
-
-/* ════════════════════════════════════════════
-   종합 엑셀 업로드 → data.json 저장
-   ════════════════════════════════════════════ */
-document.getElementById('sSumExcelInput').addEventListener('change', async function(e) {
-  const file = e.target.files[0]; if (!file) return;
-  const display = document.getElementById('sSumExcelDisplay');
-  if (display) display.textContent = '읽는 중...';
-
-  const reader = new FileReader();
-  reader.onload = async ev => {
-    try {
-      const wb = XLSX.read(ev.target.result, {type:'array', cellDates:true});
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const sumRows = XLSX.utils.sheet_to_json(ws, {raw:false, dateNF:'yyyy-mm-dd hh:mm:ss'});
-
-      // data.json에 저장 (X-Dashboard-Project 비워서 → save_data.php가 data.json으로 저장)
-      const payload = {
-        schema: 'production-dashboard.v1',
-        savedAt: new Date().toISOString(),
-        savedTab: 'all',           // ← 종합 엑셀 업로드는 항상 '종합' 탭
-        projectName: state.projectName,
-        orderNo: state.orderNo,
-        logoSrc: state.logoSrc,
-        totalQty: state.totalQty,
-        floorStart: state.floorStart,
-        floorEnd: state.floorEnd,
-        notes: state.notes,
-        stageColors: state.stageColors,
-        refDate: toDS(state.refDate),
-        panelTitles: PANEL_DEFS.map(p => ({ id: p.id, title: p.title })),
-        layout: state.layout,
-        rows: sumRows,
-        tempHumidRows: state.tempHumidRows,
-      };
-      const pwd = localStorage.getItem('dashboard_password') || '1234';
-      try {
-        const res = await fetch('./save_data.php', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Dashboard-Password': pwd,
-            'X-Dashboard-Project': '',   // ← 비워두면 data.json에 저장됨
-            'X-Dashboard-Mode': 'main'
-          },
-          body: JSON.stringify(payload, null, 2)
-        });
-        const ct = res.headers.get('content-type');
-        if (ct && ct.includes('application/json')) {
-          const rd = await res.json();
-          if (rd.success) {
-            if (display) display.textContent = `✓ ${file.name} → data.json 저장 완료 (${sumRows.length}행)`;
-            showToast(`✓ 종합 데이터 ${sumRows.length}행이 data.json에 저장되었습니다.`);
-
-            // data_[번호].json 의 savedTab을 'all'로 업데이트 → 다음 접속 시 종합 탭으로 열림
-            const p2 = new URLSearchParams(window.location.search);
-            const proj2 = (p2.get('project') || '').replace(/[^a-zA-Z0-9_-]/g, '');
-            if (proj2) {
-              try {
-                const siteRes2 = await fetch(`./data_${proj2}.json`, { cache: 'no-cache' });
-                if (siteRes2.ok) {
-                  const siteData2 = await siteRes2.json();
-                  siteData2.savedTab = 'all';
-                  siteData2.savedAt  = new Date().toISOString();
-                  await fetch('./save_data.php', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'X-Dashboard-Password': pwd,
-                      'X-Dashboard-Project': proj2,
-                      'X-Dashboard-Mode': 'main'
-                    },
-                    body: JSON.stringify(siteData2, null, 2)
-                  });
-                  console.log(`[sum-excel] savedTab=all 업데이트 완료: data_${proj2}.json`);
-                }
-              } catch(e) {
-                console.warn('[sum-excel] savedTab 업데이트 실패:', e);
-              }
-            }
-          } else {
-            if (display) display.textContent = '⚠ 서버 저장 실패: ' + (rd.message || '');
-            showToast('⚠ 종합 데이터 저장 실패');
-          }
-        } else {
-          if (display) display.textContent = '⚠ 서버 응답 오류';
-          showToast('⚠ 서버 응답 오류 (PHP 확인 필요)');
-        }
-      } catch(err) {
-        if (display) display.textContent = '⚠ 서버 연결 실패';
-        showToast('⚠ 서버 연결 실패 — 네트워크를 확인하세요');
-      }
-    } catch(err) {
-      if (display) display.textContent = '⚠ 파일 읽기 실패: ' + err.message;
-      alert('파일을 읽을 수 없습니다: ' + err.message);
-    }
   };
   reader.readAsArrayBuffer(file);
   e.target.value = '';
@@ -2168,24 +1979,40 @@ document.getElementById('sLogoInput').addEventListener('change', e => {
 /* ════════════════════════════════════════════
    SETTINGS
    ════════════════════════════════════════════ */
+// 공통 데이터 엑셀 업로드 리스너
+document.getElementById('sXlsxInput').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, {type:'array', cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      state.tempCommonRows = XLSX.utils.sheet_to_json(ws, {raw:false, dateNF:'yyyy-mm-dd hh:mm:ss'});
+      const d = document.getElementById('sXlsxPathDisplay');
+      if (d) d.textContent = `✓ 새 공통 데이터가 로드되었습니다 (${state.tempCommonRows.length}행)`;
+    } catch(err) { alert('파일을 읽을 수 없습니다: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+});
+
 function openSettings() {
+  state.tempCommonRows = null;
+  const sXlsx = document.getElementById('sXlsxPathDisplay');
+  if (sXlsx) sXlsx.textContent = "공통 데이터 파일이 선택되지 않았습니다";
+
   document.getElementById('sProjectName').value = state.projectName;
   document.getElementById('sLogoPathDisplay').textContent = state.logoSrc ? "기존 로고가 설정되어 있습니다" : "로고 이미지가 없습니다";
-
-  // URL ?project= 파라미터 추출
-  const params = new URLSearchParams(window.location.search);
-  const projectNo = params.get('project') || '';
-  const safeProjectNo = projectNo.replace(/[^a-zA-Z0-9_-]/g, '');
-
-  // 수주번호: state에 값이 있으면 그대로, 없으면 프로젝트 번호(URL)로 자동 기입
-  document.getElementById('sOrderNo').value = state.orderNo || safeProjectNo;
-
+  document.getElementById('sOrderNo').value = state.orderNo || '';
   document.getElementById('sTotalQty').value = state.totalQty;
   document.getElementById('sFloorStart').value = state.floorStart;
   document.getElementById('sFloorEnd').value = state.floorEnd;
   document.getElementById('sNotes').value = state.notes.join('\n');
 
-  // 데이터파일명 표시
+  // 현재 프로젝트 번호 (URL ?project= 파라미터 기반 데이터 파일) 표시
+  const params = new URLSearchParams(window.location.search);
+  const projectNo = params.get('project') || '';
+  const safeProjectNo = projectNo.replace(/[^a-zA-Z0-9_-]/g, '');
   const projectNoEl = document.getElementById('sProjectNoValue');
   if (projectNoEl) {
     projectNoEl.textContent = safeProjectNo ? `data_${safeProjectNo}.json` : 'data.json (프로젝트 번호 없음)';
@@ -2196,125 +2023,176 @@ function openSettings() {
   document.getElementById('settingsModal').classList.add('open');
 }
 function closeSettings() { document.getElementById('settingsModal').classList.remove('open'); }
+function checkProjectNoExists(projectNo, rows) {
+  if (!rows || !rows.length) return false;
+  const target = String(projectNo).trim();
+  if (!target) return false;
+  for (const r of rows) {
+    for (const key of ORDER_NO_KEYS) {
+      if (r[key] !== undefined && r[key] !== null) {
+        if (String(r[key]).trim() === target) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 async function applySettings() {
   const btn = document.getElementById('settingsSaveBtn');
   if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
 
-  const name = document.getElementById('sProjectName').value.trim();
-  const orderNo = document.getElementById('sOrderNo').value.trim();
-  const qty = parseInt(document.getElementById('sTotalQty').value) || state.totalQty;
-  const fs = parseInt(document.getElementById('sFloorStart').value);
-  const fe = parseInt(document.getElementById('sFloorEnd').value);
-  const notes = document.getElementById('sNotes').value.split('\n').map(s=>s.trim()).filter(Boolean);
-  if (name) state.projectName = name;
-  state.orderNo = orderNo;
-  state.totalQty = qty;
-  if (!isNaN(fs) && fs > 0) state.floorStart = fs;
-  if (!isNaN(fe) && fe > 0) state.floorEnd = fe;
-  if (state.floorEnd < state.floorStart) { const t = state.floorStart; state.floorStart = state.floorEnd; state.floorEnd = t; }
-  state.notes = notes.length ? notes : state.notes;
+  try {
+    const name = document.getElementById('sProjectName').value.trim();
+    const orderNo = document.getElementById('sOrderNo').value.trim();
+    const qty = parseInt(document.getElementById('sTotalQty').value) || state.totalQty;
+    const fs = parseInt(document.getElementById('sFloorStart').value);
+    const fe = parseInt(document.getElementById('sFloorEnd').value);
+    const notes = document.getElementById('sNotes').value.split('\n').map(s=>s.trim()).filter(Boolean);
 
-  const pwdVal = document.getElementById('sServerPassword').value.trim();
-  if (pwdVal) localStorage.setItem('dashboard_password', pwdVal);
+    // 프로젝트 번호가 입력된 경우, 데이터 내 존재 여부 확인
+    if (orderNo) {
+      const rowsToCheck = state.tempCommonRows || state.rows;
+      const exists = checkProjectNoExists(orderNo, rowsToCheck);
+      if (!exists) {
+        alert("프로젝트가 없습니다");
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '💾 저장하기';
+          btn.style.background = '';
+        }
+        return;
+      }
+    }
 
-  renderAll();
+    if (name) state.projectName = name;
+    state.orderNo = orderNo;
+    state.totalQty = qty;
+    if (!isNaN(fs) && fs > 0) state.floorStart = fs;
+    if (!isNaN(fe) && fe > 0) state.floorEnd = fe;
+    if (state.floorEnd < state.floorStart) { const t = state.floorStart; state.floorStart = state.floorEnd; state.floorEnd = t; }
+    state.notes = notes.length ? notes : state.notes;
 
-  // ── 현장 파일(data_[project].json)에만 저장 ──
-  // data.json은 설정 모달의 '종합 엑셀 업로드' 또는 서버저장 버튼(종합 탭)에서만 저장
-  const ok = await saveSettingsToServer();
+    // 공통 데이터 로드 적용
+    const hasNewExcel = !!state.tempCommonRows;
+    if (hasNewExcel) {
+      state.rows = state.tempCommonRows;
+      state.tempCommonRows = null;
+    }
 
-  if (btn) {
-    if (ok) {
-      btn.textContent = '✓ 저장 완료';
-      btn.style.background = '#15803d';
-      // 종합 탭으로 전환 — 실제 data.json 데이터를 불러와 화면 반영
-      await changeHistoryFile('all');
-      setTimeout(() => {
-        closeSettings();
-        btn.disabled = false;
-        btn.textContent = '💾 저장하기';
-        btn.style.background = '';
-      }, 1200);
+    const pwdVal = document.getElementById('sServerPassword').value.trim();
+    if (pwdVal) localStorage.setItem('dashboard_password', pwdVal);
+
+    renderAll();
+
+    // 설정 저장: 엑셀 데이터 파일 업로드 유무에 따라 분기 저장
+    let ok = false;
+    if (hasNewExcel) {
+      // 1. 공통 파일(data_common.json)에는 엑셀 데이터(rows)만 정제하여 저장 (이때 이력은 '종합'으로 변경)
+      await saveSettingsToServer('common', orderNo);
+      state.loadedFilename = '종합';
+      // 2. 프로젝트 전용 파일(data_[프로젝트번호].json)에는 설정값을 포함한 모든 내용 저장 (viewMode: '종합'으로 저장)
+      ok = await saveSettingsToServer('project', orderNo);
     } else {
-      btn.textContent = '💾 저장하기';
+      // 엑셀 업로드가 없는 일반 설정 저장은 항상 프로젝트 전용 파일로만 저장 (기존에 띄워져있던 이력 모드 그대로 저장)
+      ok = await saveSettingsToServer('project', orderNo);
+    }
+
+    if (btn) {
+      if (ok) {
+        btn.textContent = '✓ 저장 완료';
+        btn.style.background = '#15803d';
+        setTimeout(() => {
+          closeSettings();
+          btn.disabled = false;
+          btn.textContent = '💾 저장하기';
+          btn.style.background = '';
+
+          // 저장 성공 후 입력한 프로젝트 번호로 페이지 전환
+          if (orderNo) {
+            const params = new URLSearchParams(window.location.search);
+            const currentProject = params.get('project') || '';
+            const isAdmin = params.get('admin') === '1';
+            if (currentProject !== orderNo) {
+              window.location.search = `?project=${encodeURIComponent(orderNo)}${isAdmin ? '&admin=1' : ''}`;
+            }
+          }
+        }, 1200);
+      } else {
+        btn.textContent = '💾 저장하기';
+        btn.disabled = false;
+        btn.style.background = '';
+      }
+    } else {
+      closeSettings();
+    }
+  } catch (err) {
+    console.error("applySettings error:", err);
+    alert("저장 중 오류가 발생했습니다: " + err.message);
+    if (btn) {
       btn.disabled = false;
+      btn.textContent = '💾 저장하기';
       btn.style.background = '';
     }
-  } else {
-    await changeHistoryFile('all');
-    closeSettings();
   }
 }
 
-// 공동 데이터(data.json)에 현재 state를 저장 — 설정 저장하기에서만 호출
-async function saveToDataJson() {
-  const payload = {
-    schema: 'production-dashboard.v1',
-    savedAt: new Date().toISOString(),
-    savedTab: 'all',
-    projectName: state.projectName,
-    orderNo: state.orderNo,
-    logoSrc: state.logoSrc,
-    totalQty: state.totalQty,
-    floorStart: state.floorStart,
-    floorEnd: state.floorEnd,
-    notes: state.notes,
-    stageColors: state.stageColors,
-    refDate: toDS(state.refDate),
-    panelTitles: PANEL_DEFS.map(p => ({ id: p.id, title: p.title })),
-    layout: state.layout,
-    rows: state.rows,
-    tempHumidRows: state.tempHumidRows,
-  };
-  const pwd = localStorage.getItem('dashboard_password') || '1234';
-  try {
-    const res = await fetch('./save_data.php', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Dashboard-Password': pwd,
-        'X-Dashboard-Project': '',   // 빈 문자열 → save_data.php가 data.json으로 저장
-        'X-Dashboard-Mode': 'main'
-      },
-      body: JSON.stringify(payload, null, 2)
-    });
-    const ct = res.headers.get('content-type');
-    if (ct && ct.includes('application/json')) {
-      const d = await res.json();
-      if (d.success) { console.log('[settings] 공동 data.json 저장 완료'); return true; }
-    }
-    console.warn('[settings] 공동 data.json 저장 실패');
-    return false;
-  } catch(e) {
-    console.warn('[settings] 공동 data.json 저장 오류:', e);
-    return false;
-  }
-}
-
-// 설정을 data_[project].json 메인 파일에 직접 저장 (X-Dashboard-Mode: main)
-async function saveSettingsToServer() {
+// 설정을 data_[project].json 또는 data_common.json 파일에 직접 저장 (X-Dashboard-Mode: main)
+async function saveSettingsToServer(targetMode = null, customOrderNo = null) {
   const params = new URLSearchParams(window.location.search);
   const project = params.get('project') || '';
   const safeProject = project.replace(/[^a-zA-Z0-9_-]/g, '');
 
-  const payload = {
-    schema: 'production-dashboard.v1',
-    savedAt: new Date().toISOString(),
-    savedTab: state.activeTab || 'site',   // ← 저장 당시 탭 기록
-    projectName: state.projectName,
-    orderNo: state.orderNo,
-    logoSrc: state.logoSrc,
-    totalQty: state.totalQty,
-    floorStart: state.floorStart,
-    floorEnd: state.floorEnd,
-    notes: state.notes,
-    stageColors: state.stageColors,
-    refDate: toDS(state.refDate),
-    panelTitles: PANEL_DEFS.map(p => ({ id: p.id, title: p.title })),
-    layout: state.layout,
-    rows: state.rows,
-    tempHumidRows: state.tempHumidRows,
-  };
+  let saveProject = safeProject;
+  let labelMode = '현장';
+
+  if (targetMode === 'project' || targetMode === 'site') {
+    saveProject = (customOrderNo || safeProject).replace(/[^a-zA-Z0-9_-]/g, '');
+    labelMode = '현장';
+  } else if (targetMode === 'common') {
+    saveProject = 'common';
+    labelMode = '종합';
+  } else {
+    // targetMode가 지정되지 않은 경우, 현재 로드된 파일 모드를 보고 알아서 판단
+    if (state.loadedFilename === '종합') {
+      saveProject = 'common';
+      labelMode = '종합';
+    } else {
+      saveProject = (customOrderNo || safeProject).replace(/[^a-zA-Z0-9_-]/g, '');
+      labelMode = '현장';
+    }
+  }
+
+  // data_common.json 파일에는 오직 엑셀 데이터(rows, tempHumidRows 등)만 저장하도록 페이로드 분리
+  let payload;
+  if (saveProject === 'common') {
+    payload = {
+      schema: 'production-dashboard.v1',
+      savedAt: new Date().toISOString(),
+      rows: state.rows,
+      tempHumidRows: state.tempHumidRows
+    };
+  } else {
+    payload = {
+      schema: 'production-dashboard.v1',
+      savedAt: new Date().toISOString(),
+      viewMode: state.loadedFilename || '현장', // 현재 화면 이력 모드(현장/종합)를 함께 저장
+      projectName: state.projectName,
+      orderNo: state.orderNo,
+      logoSrc: state.logoSrc,
+      totalQty: state.totalQty,
+      floorStart: state.floorStart,
+      floorEnd: state.floorEnd,
+      notes: state.notes,
+      stageColors: state.stageColors,
+      refDate: toDS(state.refDate),
+      panelTitles: PANEL_DEFS.map(p => ({ id: p.id, title: p.title })),
+      layout: state.layout,
+      rows: state.rows,
+      tempHumidRows: state.tempHumidRows,
+    };
+  }
 
   const json = JSON.stringify(payload, null, 2);
   const pwd = localStorage.getItem('dashboard_password') || '1234';
@@ -2325,8 +2203,8 @@ async function saveSettingsToServer() {
       headers: {
         'Content-Type': 'application/json',
         'X-Dashboard-Password': pwd,
-        'X-Dashboard-Project': safeProject,
-        'X-Dashboard-Mode': 'main'   // ← data_[project].json에 직접 덮어쓰기
+        'X-Dashboard-Project': saveProject,
+        'X-Dashboard-Mode': 'main'
       },
       body: json
     });
@@ -2334,8 +2212,10 @@ async function saveSettingsToServer() {
     if (contentType && contentType.includes('application/json')) {
       const resData = await res.json();
       if (res.ok && resData.success) {
-        showToast('✓ 설정이 저장되었습니다. (' + (resData.filename || '') + ')');
-        console.log('[settings] 서버 저장 완료:', resData.filename);
+        state.loadedFilename = (saveProject === 'common') ? '종합' : payload.viewMode;
+        syncHistorySelectValue();
+        showToast(`✓ ${state.loadedFilename} 설정 및 데이터가 저장되었습니다.`);
+        console.log(`[settings] 서버 저장 완료 (${labelMode}):`, resData.filename);
         return true;
       } else {
         showToast('⚠ 서버 저장 실패: ' + (resData.message || '알 수 없는 오류'));
@@ -2346,7 +2226,7 @@ async function saveSettingsToServer() {
     showToast('⚠ 서버 응답 오류 (PHP 모듈 확인 필요)');
     return false;
   } catch(e) {
-    showToast('⚠ 서버 연결 실패 — 설정이 저장되지 않았습니다.');
+    showToast(`⚠ 서버 연결 실패 — ${labelMode} 데이터가 저장되지 않았습니다.`);
     console.warn('[settings] 서버 저장 오류:', e);
     return false;
   }
@@ -2459,11 +2339,15 @@ function generateDemo() {
    INIT
    ════════════════════════════════════════════ */
 (async function init() {
-  // Admin gate: show admin toolbar only when URL has ?admin=1
+  // Admin gate: show 💾 서버 저장 + ↻ 배치 buttons + enable logo click only when URL has ?admin=1
   const admin = isAdminMode();
   if (admin) {
-    const toolbar = document.getElementById('adminToolbar');
-    if (toolbar) toolbar.style.display = 'flex';
+    const saveBtn = document.getElementById('serverSaveBtn');
+    if (saveBtn) saveBtn.style.display = '';
+    const resetBtn = document.getElementById('resetLayoutBtn');
+    if (resetBtn) resetBtn.style.display = '';
+    const settingsBtn = document.getElementById('settingsBtn');
+    if (settingsBtn) settingsBtn.style.display = '';
   }
 
   // 서버 data_[project].json 로드 (설정 포함)
@@ -2471,6 +2355,8 @@ function generateDemo() {
   if (!loaded) {
     state.rows = generateDemo();
   }
+
+  // (기준일 오늘 날짜 강제 설정은 loadServerData 내부에서 처리됨)
 
   if (!state.layout || !Object.keys(state.layout).length) {
     state.layout = calcDefaultLayout();
