@@ -404,6 +404,33 @@
     .btn-ghost { border: 1px solid #d6e2e2; background: #fff; color: var(--text-sec); }
     .btn-primary { border: none; background: linear-gradient(120deg, #1a878d, #10646a); color: #fff; }
 
+    /* ══════════ NAVER WORKS 패널 (모듈 iframe 임베드) ══════════ */
+    .count-badge {
+      display: inline-block; min-width: 18px; padding: 2px 6px; margin-left: 6px;
+      border-radius: 999px; background: #ef4444; color: #fff;
+      font-size: 0.62rem; font-weight: 800; text-align: center; vertical-align: middle;
+    }
+    /* 관리자 모드 드래그/리사이즈 중에는 iframe이 마우스 이벤트를 삼키지 않도록 차단 */
+    .block-panel.dragging iframe, .block-panel.resizing iframe { pointer-events: none; }
+
+    /* ══════════ 패널 숨김/복원 ══════════ */
+    .panel-hide-btn {
+      border: none; background: none; cursor: pointer; font-family: inherit;
+      font-size: 0.78rem; color: var(--text-dim); padding: 2px 5px; line-height: 1;
+      border-radius: 6px; flex-shrink: 0;
+    }
+    .panel-hide-btn:hover { color: #ef4444; background: rgba(239, 68, 68, 0.08); }
+    /* 헤더가 flex(.card-head)인 패널: 제목이 남은 공간을 차지해 버튼들이 우측 정렬됨 */
+    .card-head .block-title, .card-head h2 { flex: 1; min-width: 0; margin-right: 10px; }
+    .card-head .panel-hide-btn { margin-left: 10px; }
+    /* 온습도 카드처럼 오버레이형 헤더: 우상단 고정 */
+    .panel-header:not(.card-head) .panel-hide-btn {
+      position: absolute; top: 5px; right: 8px; z-index: 6;
+      background: rgba(255, 255, 255, 0.88);
+    }
+    /* 사이드바 복원 버튼 (nav-item 재사용) */
+    button.nav-item { width: 100%; border: none; background: none; text-align: left; font-family: inherit; }
+
     /* ══════════ RESPONSIVE ══════════ */
     @media (max-width: 1120px) {
       #contentGrid { grid-template-columns: 1fr; }
@@ -468,6 +495,13 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         <span class="nav-label">회사 홈</span>
       </a>
+
+      <!-- 숨긴 패널 목록 (관리자 모드에서 숨긴 패널이 있을 때만 JS가 표시) -->
+      <div id="hiddenPanelSection" style="display:none;">
+        <div class="nav-divider"></div>
+        <div class="nav-section-label">숨긴 패널</div>
+        <div id="hiddenPanelList"></div>
+      </div>
     </aside>
 
     <!-- ══════════ 메인 콘텐츠 ══════════ -->
@@ -552,6 +586,28 @@
           <span class="temp-tag" style="position:absolute; top:10px; left:12px; z-index:2; pointer-events:none;">🌡️ 양생실 실시간 온습도</span>
           <div class="rs-handle se admin-only" data-panel="tempCardWrap" data-dir="se"></div>
         </a>
+
+        <!-- 네이버웍스 메일 패널 (별도 모듈 works_mail.html 임베드) -->
+        <div class="card block-panel" id="mailPanel" data-block="mailPanel" style="display:flex; flex-direction:column; overflow:hidden;">
+          <div class="card-head panel-header" data-panel="mailPanel" style="flex-shrink:0;">
+            <h2 class="block-title">✉️ 네이버웍스 메일<span id="mailBadge" class="count-badge" style="display:none;">0</span></h2>
+            <a class="head-link" href="https://mail.worksmobile.com/" target="_blank" rel="noopener">메일함 ↗</a>
+          </div>
+          <iframe src="dashboard/works_mail.html" title="네이버웍스 메일 목록" loading="lazy"
+                  style="flex:1; min-height:0; width:100%; border:none; margin-top:8px;"></iframe>
+          <div class="rs-handle se admin-only" data-panel="mailPanel" data-dir="se"></div>
+        </div>
+
+        <!-- 시스템 알림 & 메신저 패널 (별도 모듈 works_talk.html 임베드) -->
+        <div class="card block-panel" id="snsPanel" data-block="snsPanel" style="display:flex; flex-direction:column; overflow:hidden;">
+          <div class="card-head panel-header" data-panel="snsPanel" style="flex-shrink:0;">
+            <h2 class="block-title">💬 시스템 알림 & 메신저</h2>
+            <a class="head-link" href="https://talk.worksmobile.com/" target="_blank" rel="noopener">메신저 ↗</a>
+          </div>
+          <iframe src="dashboard/works_talk.html" title="시스템 알림 목록" loading="lazy"
+                  style="flex:1; min-height:0; width:100%; border:none; margin-top:8px;"></iframe>
+          <div class="rs-handle se admin-only" data-panel="snsPanel" data-dir="se"></div>
+        </div>
       </div>
 
       <footer>
@@ -658,9 +714,10 @@
       const topbarH = topbar ? (topbar.offsetHeight + 24 + 28) : 180; // 28px padding-top + 24px margin-bottom
       const boardH = Math.max(500, window.innerHeight - topbarH);
 
-      // contentGrid 높이를 블록들이 차지하는 최대 하단 위치로 동적 조절
+      // contentGrid 높이를 블록들이 차지하는 최대 하단 위치로 동적 조절 (숨긴 패널 제외)
       let maxBottom = boardH;
       Object.keys(state.layout).forEach(id => {
+        if (state.hiddenPanels && state.hiddenPanels.includes(id)) return;
         const L = state.layout[id];
         const bottom = Math.round((L.y + L.h) * boardH);
         if (bottom > maxBottom) maxBottom = bottom;
@@ -883,6 +940,7 @@
       cards: [],
       contentBlocks: {},   // { block1|block2|summary: { title, html } }
       layout: {},          // { x, y, w, h } 비율 저장
+      hiddenPanels: [],    // 숨김 처리된 패널 id 목록
       loadedPortal: null   // 저장 시 기존 필드 보존용 원본
     };
 
@@ -891,7 +949,10 @@
       tempCardWrap: { x: 0, y: 0.6, w: 0.54, h: 0.4 },
       summary: { x: 0.54, y: 0, w: 0.46, h: 0.25 },
       block1: { x: 0.54, y: 0.25, w: 0.46, h: 0.25 },
-      projectGroup: { x: 0.54, y: 0.5, w: 0.46, h: 0.5 }
+      projectGroup: { x: 0.54, y: 0.5, w: 0.46, h: 0.5 },
+      // 네이버웍스 패널: 기본 위치는 보드 하단 (관리자 모드에서 드래그로 재배치 후 저장)
+      mailPanel: { x: 0, y: 1.03, w: 0.54, h: 0.45 },
+      snsPanel: { x: 0.54, y: 1.03, w: 0.46, h: 0.45 }
     };
 
     const BLOCK_DEFAULTS = {
@@ -1446,6 +1507,7 @@
         if (Array.isArray(d.cards)) state.cards = d.cards;
         if (d.contentBlocks && typeof d.contentBlocks === 'object') state.contentBlocks = d.contentBlocks;
         if (d.layout && typeof d.layout === 'object') state.layout = d.layout;
+        if (Array.isArray(d.hiddenPanels)) state.hiddenPanels = d.hiddenPanels;
         return true;
       } catch (e) { return false; }
     }
@@ -1459,7 +1521,8 @@
         logoSrc: state.logoSrc,
         cards: state.cards,
         contentBlocks: state.contentBlocks,
-        layout: state.layout
+        layout: state.layout,
+        hiddenPanels: state.hiddenPanels
       });
       const pwd = localStorage.getItem('dashboard_password') || '1234';
       try {
@@ -1472,6 +1535,103 @@
         if (d.success) showToast('✓ 포털이 저장되었습니다.'); else showToast('⚠ 저장 실패: ' + d.message);
       } catch (e) { showToast('⚠ 서버 연결 실패'); }
     }
+
+    // ══════════ 패널 숨김/복원 ══════════
+    // 관리자 모드에서 패널 헤더의 ➖ 버튼으로 숨기고, 사이드바 하단 목록에서 클릭해 복원.
+    // 숨김 상태는 hiddenPanels 배열로 저장되어 💾 저장 시 서버에 영구 반영됨.
+    function getPanelTitle(id) {
+      const el = document.getElementById(id);
+      if (!el) return id;
+      const t = el.querySelector('.block-title') || el.querySelector('h2') || el.querySelector('.temp-tag');
+      if (!t) return id;
+      const clone = t.cloneNode(true);
+      clone.querySelectorAll('.count-badge').forEach(b => b.remove()); // 메일 배지 숫자 제외
+      return clone.textContent.replace(/\s+/g, ' ').trim() || id;
+    }
+
+    function markLayoutDirty() {
+      const btn = document.querySelector('.admin-save-btn:last-of-type');
+      if (btn) btn.style.background = '#ffd700';
+    }
+
+    function applyPanelVisibility() {
+      Object.keys(DEFAULT_LAYOUT).forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        // 패널별 원래 display 값(flex/block 등)을 최초 1회 보존해 두었다가 복원 시 되돌림
+        if (el.dataset.origDisplay === undefined) el.dataset.origDisplay = el.style.display || '';
+        el.style.display = state.hiddenPanels.includes(id) ? 'none' : el.dataset.origDisplay;
+      });
+      applyLayout(); // 보드 높이 재계산
+    }
+
+    function hidePanel(id) {
+      if (!state.hiddenPanels.includes(id)) state.hiddenPanels.push(id);
+      applyPanelVisibility();
+      renderHiddenPanelList();
+      markLayoutDirty();
+      showToast(`'${getPanelTitle(id)}' 패널을 숨겼습니다. 💾 저장을 눌러 서버에 반영하세요.`);
+    }
+
+    function showPanel(id) {
+      state.hiddenPanels = state.hiddenPanels.filter(x => x !== id);
+      applyPanelVisibility();
+      renderHiddenPanelList();
+      markLayoutDirty();
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      showToast(`'${getPanelTitle(id)}' 패널을 다시 표시했습니다. 💾 저장을 눌러 서버에 반영하세요.`);
+    }
+
+    function renderHiddenPanelList() {
+      const section = document.getElementById('hiddenPanelSection');
+      const listEl = document.getElementById('hiddenPanelList');
+      const ids = (state.hiddenPanels || []).filter(id => document.getElementById(id));
+      if (!isAdmin() || ids.length === 0) {
+        section.style.display = 'none';
+        listEl.innerHTML = '';
+        return;
+      }
+      section.style.display = 'block';
+      listEl.innerHTML = ids.map(id => `
+        <button class="nav-item" onclick="showPanel('${esc(id)}')" title="클릭하면 패널이 다시 표시됩니다">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          <span class="nav-label">${esc(getPanelTitle(id))}</span>
+        </button>`).join('');
+    }
+
+    // 각 패널 헤더에 숨김 버튼(➖) 주입 — 관리자 모드에서만 표시됨(admin-only)
+    function injectHideButtons() {
+      document.querySelectorAll('.panel-header[data-panel]').forEach(h => {
+        const id = h.dataset.panel;
+        if (!DEFAULT_LAYOUT[id]) return;
+        const btn = document.createElement('button');
+        btn.className = 'panel-hide-btn admin-only';
+        btn.title = '패널 숨기기 (사이드바 하단 목록에서 복원)';
+        btn.textContent = '➖';
+        btn.addEventListener('click', e => {
+          e.preventDefault();    // 온습도 카드(<a>) 내부 클릭 시 페이지 이동 방지
+          e.stopPropagation();
+          hidePanel(id);
+        });
+        h.appendChild(btn);
+      });
+    }
+
+    // ══════════ 네이버웍스 패널 (works_mail.html / works_talk.html iframe 모듈) ══════════
+    // 메일 모듈이 postMessage로 보내주는 안읽은 메일 수를 패널 헤더 배지에 반영
+    window.addEventListener('message', e => {
+      if (!e.data || e.data.type !== 'worksMailUnread') return;
+      const mailBadge = document.getElementById('mailBadge');
+      if (!mailBadge) return;
+      const count = parseInt(e.data.count, 10) || 0;
+      if (count > 0) {
+        mailBadge.textContent = count > 99 ? '99+' : count;
+        mailBadge.style.display = 'inline-block';
+      } else {
+        mailBadge.style.display = 'none';
+      }
+    });
 
     // ══════════ 초기화 ══════════
     (async function init() {
@@ -1492,6 +1652,11 @@
       renderProjects();
       loadDailyOutputs();
 
+      // 패널 숨김/복원 기능 초기화
+      injectHideButtons();
+      applyPanelVisibility();
+      renderHiddenPanelList();
+
       const pg = document.getElementById('projectGroup');
       if (pg) projectGridObserver.observe(pg);
 
@@ -1502,6 +1667,7 @@
         attachInteractions();
         window.addEventListener('resize', applyLayout);
       });
+
     })();
   </script>
 </body>

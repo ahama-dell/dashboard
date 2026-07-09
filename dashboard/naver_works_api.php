@@ -24,6 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 // ────────────────────────────────────────────────────────────────
 // 🔑 [설정] 네이버웍스 Developer Console 인증 정보
+//
+// 발급 절차 (https://developers.worksmobile.com/ → Console):
+//   1. 앱(Client App) 생성 → Client ID / Client Secret 발급
+//   2. OAuth Scope에 "mail.read" 추가 (메일 조회용)
+//   3. Redirect URL에 메일 모듈 주소 등록
+//      (예: http://218.158.57.134:8080/dashboard/works_mail.html)
+//      ※ 로그인 팝업이 보내는 redirect_uri와 정확히 일치해야 함
+//   4. 아래 두 값을 실제 발급값으로 교체하면 목업 모드가 자동 해제됨
 // ────────────────────────────────────────────────────────────────
 define('WORKS_CLIENT_ID', 'YOUR_CLIENT_ID');
 define('WORKS_CLIENT_SECRET', 'YOUR_CLIENT_SECRET');
@@ -155,6 +163,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $tokenData['success'] = true;
             echo json_encode($tokenData);
         }
+        ob_end_flush();
+        exit;
+    }
+
+    // 🔔 2-1. 시스템 알림 피드 API (로그인 불필요 — 서버 로컬 경보만 반환)
+    if ($action === 'notifications') {
+        echo json_encode([
+            "success" => true,
+            "notifications" => getSystemNotificationsLocal()
+        ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
         ob_end_flush();
         exit;
     }
@@ -314,67 +332,132 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // 📡 네이버웍스 실제 API 연동 함수군
 // ────────────────────────────────────────────────────────────────
 
-// 1. 네이버웍스 메일 요약 데이터 가져오기
+// 0. Works API GET 공통 호출 헬퍼
+function worksApiGet($url, $accessToken) {
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        "Authorization: Bearer {$accessToken}",
+        "Content-Type: application/json"
+    ]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    $res = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return [$httpCode, $res ? json_decode($res, true) : null];
+}
+
+// 0-1. 수신시각을 목록 표시용 문자열로 변환 (오늘=시:분, 어제='어제', 그 외=월.일)
+function formatWorksMailTime($isoTime) {
+    if (empty($isoTime)) return '';
+    try {
+        $tz = new DateTimeZone('Asia/Seoul');
+        $dt = new DateTime($isoTime);
+        $dt->setTimezone($tz);
+        $now = new DateTime('now', $tz);
+        $diffDays = (int)$now->format('Ymd') - (int)$dt->format('Ymd');
+        if ($diffDays === 0) return $dt->format('H:i');
+        if ($diffDays === 1) return '어제';
+        return $dt->format('m.d');
+    } catch (Exception $e) {
+        return '';
+    }
+}
+
+// 1. 네이버웍스 메일 요약 데이터 가져오기 (Mail API v1.0, 사용자 계정 토큰 필요 / scope: mail.read)
 function getNaverWorksSummary($accessToken) {
     if (empty($accessToken)) {
         return ["success" => false, "message" => "인증 토큰(access_token)이 누락되었습니다.", "mails" => [], "unreadMailCount" => 0];
     }
 
-    // 안 읽은 메일 수 가져오기 API 호출 예시
-    $ch = curl_init('https://www.worksapis.com/v2/mails/folders/INBOX');
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        "Authorization: Bearer {$accessToken}",
-        "Content-Type: application/json"
-    ]);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    $res = curl_exec($ch);
-    $httpCode1 = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $apiBase = 'https://www.worksapis.com/v1.0/users/me';
 
-    $unreadCount = 0;
-    if ($httpCode1 === 200 && $res) {
-        $inbox = json_decode($res, true);
-        $unreadCount = isset($inbox['unreadMailCount']) ? $inbox['unreadMailCount'] : 0;
+    // 1) 메일함 목록 조회 → 받은메일함 folderId 및 안읽은 메일 수 확보
+    list($codeFolders, $folderData) = worksApiGet("{$apiBase}/mail/mailfolders", $accessToken);
+
+    if ($codeFolders === 401 || $codeFolders === 403) {
+        return [
+            "success" => false,
+            "needsReauth" => true,
+            "message" => "네이버웍스 인증이 만료되었거나 mail.read 권한이 없습니다. (HTTP {$codeFolders})"
+        ];
+    }
+    if ($codeFolders !== 200 || !isset($folderData['mailFolders'])) {
+        return [
+            "success" => false,
+            "message" => "메일함 목록 조회 실패 (HTTP {$codeFolders})",
+            "raw" => $folderData
+        ];
     }
 
-    // 최근 메일 목록 가져오기 API 호출 예시
-    $ch = curl_init('https://www.worksapis.com/v2/mails?pageSize=5');
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        "Authorization: Bearer {$accessToken}",
-        "Content-Type: application/json"
-    ]);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    $resList = curl_exec($ch);
-    $httpCode2 = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    // 받은메일함 탐색: 이름 매칭 우선, 없으면 시스템 폴더 중 folderId가 가장 작은 것
+    $inboxFolderId = null;
+    $unreadCount = 0;
+    $systemFolders = [];
+    foreach ($folderData['mailFolders'] as $f) {
+        $name = isset($f['folderName']) ? $f['folderName'] : '';
+        if ($name === '받은메일함' || strcasecmp($name, 'Inbox') === 0) {
+            $inboxFolderId = $f['folderId'];
+            $unreadCount = isset($f['unreadMailCount']) ? (int)$f['unreadMailCount'] : 0;
+            break;
+        }
+        if (isset($f['folderType']) && $f['folderType'] === 'S') $systemFolders[] = $f;
+    }
+    if ($inboxFolderId === null && count($systemFolders) > 0) {
+        usort($systemFolders, function($a, $b) { return $a['folderId'] - $b['folderId']; });
+        $inboxFolderId = $systemFolders[0]['folderId'];
+        $unreadCount = isset($systemFolders[0]['unreadMailCount']) ? (int)$systemFolders[0]['unreadMailCount'] : 0;
+    }
+    if ($inboxFolderId === null) {
+        return ["success" => false, "message" => "받은메일함을 찾을 수 없습니다.", "raw" => $folderData];
+    }
+
+    // 2) 받은메일함 최근 메일 목록 조회 (최소 허용값 5건)
+    list($codeList, $listData) = worksApiGet("{$apiBase}/mail/mailfolders/{$inboxFolderId}/children?count=5", $accessToken);
+
+    if ($codeList === 401 || $codeList === 403) {
+        return [
+            "success" => false,
+            "needsReauth" => true,
+            "message" => "네이버웍스 인증이 만료되었습니다. (HTTP {$codeList})"
+        ];
+    }
+    if ($codeList !== 200) {
+        return ["success" => false, "message" => "메일 목록 조회 실패 (HTTP {$codeList})", "raw" => $listData];
+    }
 
     $mails = [];
-    $isSuccess = ($httpCode1 === 200 && $httpCode2 === 200);
+    if (isset($listData['mails']) && is_array($listData['mails'])) {
+        foreach ($listData['mails'] as $m) {
+            $isUnread = (isset($m['status']) && $m['status'] === 'Unread');
 
-    if ($httpCode2 === 200 && $resList) {
-        $mailList = json_decode($resList, true);
-        if (isset($mailList['mails']) && is_array($mailList['mails'])) {
-            foreach ($mailList['mails'] as $m) {
-                // read 필드가 false(또는 미설정)이면 안읽은 상태
-                $isUnread = isset($m['read']) ? !$m['read'] : true;
-                // v2 API 메일 목록에는 body 대신 snippet이 제공될 수 있으므로, snippet 혹은 subject를 바인딩
-                $bodyContent = isset($m['snippet']) ? $m['snippet'] : (isset($m['subject']) ? $m['subject'] : '');
-
-                $mails[] = [
-                    "subject" => isset($m['subject']) ? $m['subject'] : '(제목 없음)',
-                    "senderName" => isset($m['from']['name']) ? $m['from']['name'] : '알 수 없음',
-                    "senderEmail" => isset($m['from']['email']) ? $m['from']['email'] : '',
-                    "receivedTime" => isset($m['receivedTime']) ? date('H:i', strtotime($m['receivedTime'])) : '',
-                    "isUnread" => $isUnread,
-                    "body" => $bodyContent,
-                    "link" => "https://mail.worksmobile.com/" // 기본 메일함 이동 링크
-                ];
+            // 3) 본문 미리보기: 메일 읽기 API로 개별 조회 (실패해도 목록 표시는 유지)
+            $bodyContent = '';
+            if (isset($m['mailId'])) {
+                list($codeMail, $mailDetail) = worksApiGet("{$apiBase}/mail/{$m['mailId']}", $accessToken);
+                if ($codeMail === 200 && isset($mailDetail['body'])) {
+                    // HTML 본문 → 태그 제거 후 미리보기 텍스트로 정리
+                    $plain = html_entity_decode(strip_tags($mailDetail['body']), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    $plain = preg_replace('/[ \t]+/u', ' ', $plain);
+                    $plain = preg_replace('/\n{3,}/u', "\n\n", str_replace("\r", '', $plain));
+                    $bodyContent = mb_substr(trim($plain), 0, 1000, 'UTF-8');
+                }
             }
+
+            $mails[] = [
+                "subject" => isset($m['subject']) && $m['subject'] !== '' ? $m['subject'] : '(제목 없음)',
+                "senderName" => isset($m['from']['name']) && $m['from']['name'] !== '' ? $m['from']['name'] : (isset($m['from']['email']) ? $m['from']['email'] : '알 수 없음'),
+                "senderEmail" => isset($m['from']['email']) ? $m['from']['email'] : '',
+                "receivedTime" => isset($m['receivedTime']) ? formatWorksMailTime($m['receivedTime']) : '',
+                "isUnread" => $isUnread,
+                "body" => $bodyContent,
+                "link" => "https://mail.worksmobile.com/" // 기본 메일함 이동 링크
+            ];
         }
     }
 
     return [
-        "success" => $isSuccess,
+        "success" => true,
         "isMockMode" => false,
         "unreadMailCount" => $unreadCount,
         "mails" => $mails,

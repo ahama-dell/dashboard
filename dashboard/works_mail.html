@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>네이버웍스 메일</title>
+<style>
+  :root {
+    --teal: #17777d;
+    --teal-deep: #0e5a60;
+    --teal-soft: #e0f0ef;
+    --text-pri: #12343a;
+    --text-sec: #5f8286;
+    --text-dim: #9db9bb;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+    background: transparent;
+    color: var(--text-pri);
+    font-size: 14px;
+    overflow: hidden;
+  }
+  #wrap { height: 100%; display: flex; flex-direction: column; padding: 4px 2px; }
+  #listScroll { flex: 1; min-height: 0; overflow-y: auto; }
+  #listScroll::-webkit-scrollbar { width: 6px; }
+  #listScroll::-webkit-scrollbar-thumb { background: rgba(23,119,125,0.2); border-radius: 3px; }
+
+  .works-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .works-list li {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 12px; background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(23, 119, 125, 0.08); border-radius: 10px;
+    font-size: 0.78rem; cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .works-list li:hover { background: var(--teal-soft); transform: translateY(-1px); }
+  .works-list li.unread { border-left: 3px solid var(--teal); background: rgba(23, 119, 125, 0.04); }
+  .list-placeholder {
+    justify-content: center !important; color: var(--text-dim);
+    border: 1px dashed rgba(0, 0, 0, 0.06) !important; background: transparent !important;
+    padding: 26px !important; cursor: default !important;
+  }
+  .list-placeholder:hover { transform: none !important; }
+  .mail-item-left { display: flex; flex-direction: column; gap: 3px; flex: 1; margin-right: 12px; min-width: 0; text-align: left; }
+  .mail-subject { font-weight: 600; color: var(--text-pri); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .works-list li.unread .mail-subject { font-weight: 800; }
+  .mail-sender { font-size: 0.68rem; color: var(--text-sec); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mail-date { font-size: 0.68rem; color: var(--text-dim); white-space: nowrap; }
+
+  /* 안내(로그인/미설정) 카드 */
+  .works-unconfigured {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 24px 18px; height: 100%; min-height: 150px; color: var(--text-sec);
+  }
+  .unconfigured-icon { font-size: 2rem; margin-bottom: 10px; animation: plugPulse 2s infinite ease-in-out; }
+  @keyframes plugPulse {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.08); opacity: 1; }
+  }
+  .unconfigured-title { font-size: 0.86rem; font-weight: 800; color: var(--text-pri); margin-bottom: 6px; }
+  .unconfigured-desc { font-size: 0.72rem; line-height: 1.55; margin-bottom: 12px; max-width: 320px; }
+  .unconfigured-link {
+    font-size: 0.72rem; font-weight: 700; color: var(--teal); text-decoration: none;
+    padding: 7px 14px; border: 1px solid rgba(23, 119, 125, 0.3); border-radius: 999px;
+    background: #fff; font-family: inherit; cursor: pointer;
+  }
+  .unconfigured-link:hover { background: var(--teal-soft); }
+
+  /* 하단 유틸 바 (로그아웃) */
+  #utilBar { flex-shrink: 0; display: none; justify-content: flex-end; padding: 6px 2px 2px; }
+  #utilBar button {
+    font-size: 0.65rem; font-weight: 700; color: #ef4444; font-family: inherit;
+    background: none; border: none; cursor: pointer; padding: 3px 6px;
+  }
+  #utilBar button:hover { text-decoration: underline; }
+
+  /* 상세보기 모달 */
+  .modal-bg {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: rgba(18, 52, 58, 0.35); backdrop-filter: blur(3px);
+    align-items: center; justify-content: center; padding: 14px;
+  }
+  .modal-bg.show { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; width: 100%; max-width: 520px;
+    max-height: 92%; display: flex; flex-direction: column;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.25); padding: 16px;
+  }
+  .modal-hd { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+  .modal-hd h3 { font-size: 0.88rem; font-weight: 800; color: var(--text-pri); line-height: 1.4; word-break: break-word; }
+  .modal-close { background: none; border: none; cursor: pointer; color: var(--text-sec); font-size: 0.9rem; padding: 2px 4px; flex-shrink: 0; }
+  .detail-meta { font-size: 0.7rem; color: var(--text-sec); margin-bottom: 10px; line-height: 1.5; }
+  .detail-body {
+    font-size: 0.78rem; color: var(--text-pri); line-height: 1.65;
+    white-space: pre-wrap; word-break: break-word;
+    flex: 1; min-height: 0; overflow-y: auto;
+    background: #f7fafa; border: 1px solid rgba(23, 119, 125, 0.08);
+    border-radius: 10px; padding: 12px;
+  }
+  .detail-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+  .btn-ghost, .btn-primary {
+    padding: 8px 16px; border-radius: 999px; font-size: 0.74rem; font-weight: 700;
+    font-family: inherit; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center;
+  }
+  .btn-ghost { border: 1px solid #d6e2e2; background: #fff; color: var(--text-sec); }
+  .btn-primary { border: none; background: linear-gradient(120deg, #1a878d, #10646a); color: #fff; }
+
+  #toast {
+    position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: rgba(18, 52, 58, 0.92); color: #fff; font-size: 0.72rem; font-weight: 600;
+    padding: 9px 18px; border-radius: 999px; opacity: 0; pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s; z-index: 99; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="listScroll">
+      <ul class="works-list" id="mailList">
+        <li class="list-placeholder">메일 목록을 불러오는 중입니다...</li>
+      </ul>
+    </div>
+    <div id="utilBar">
+      <button onclick="doLogout()" title="네이버웍스 연동 로그아웃">🚪 연동 해제(로그아웃)</button>
+    </div>
+  </div>
+
+  <!-- 상세보기 모달 -->
+  <div id="detailModal" class="modal-bg" onclick="if(event.target===this)closeDetail()">
+    <div class="modal-card">
+      <div class="modal-hd">
+        <h3 id="detailTitle">상세 보기</h3>
+        <button class="modal-close" onclick="closeDetail()">✕</button>
+      </div>
+      <div class="detail-meta" id="detailMeta"></div>
+      <div class="detail-body" id="detailBody"></div>
+      <div class="detail-actions">
+        <button class="btn-ghost" onclick="closeDetail()">닫기</button>
+        <a class="btn-primary" id="detailLink" href="https://mail.worksmobile.com/" target="_blank" rel="noopener">네이버웍스에서 열기 ↗</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+  // ══════════ 네이버웍스 메일 모듈 (iframe 임베드용 독립 위젯) ══════════
+  // 토큰은 localStorage에 저장되며 같은 도메인의 포털·팝업과 공유됩니다.
+  const API = 'naver_works_api.php'; // 같은 dashboard/ 폴더
+  const TOKEN_KEY = 'naver_works_access_token';
+  const REFRESH_KEY = 'naver_works_refresh_token';
+  const EXPIRES_KEY = 'naver_works_token_expires';
+
+  let mails = [];
+
+  function esc(s) { return String(s || '').replace(/[&<>'"]/g, t => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[t] || t)); }
+
+  let toastTimer;
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+  }
+
+  function clearTokens() {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_KEY);
+    localStorage.removeItem(EXPIRES_KEY);
+  }
+
+  // 부모(포털)에게 안읽은 메일 수 전달 → 패널 헤더 배지 갱신
+  function postUnreadCount(count) {
+    try {
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: 'worksMailUnread', count: count }, '*');
+      }
+    } catch (e) { /* 무시 */ }
+  }
+
+  // ── 데이터 조회 및 렌더링 ─────────────────────────────
+  async function fetchData() {
+    try {
+      const cfgRes = await fetch(API + '?action=config', { cache: 'no-cache' });
+      if (!cfgRes.ok) throw new Error('Config load failed');
+      const config = await cfgRes.json();
+
+      const accessToken = await checkAndRefreshToken();
+      if (!accessToken) { showLoginForm(config.client_id, config.isMockMode); return; }
+
+      const res = await fetch(API + '?action=summary', {
+        cache: 'no-cache',
+        headers: { 'Authorization': 'Bearer ' + accessToken }
+      });
+      if (!res.ok) throw new Error('Summary request failed');
+      const data = await res.json();
+
+      if (!data.success) {
+        clearTokens();
+        showLoginForm(config.client_id, config.isMockMode);
+        if (data.message) showToast('⚠ ' + data.message);
+        postUnreadCount(0);
+        return;
+      }
+
+      document.getElementById('utilBar').style.display = 'flex';
+      renderMails(data);
+      postUnreadCount(data.unreadMailCount || 0);
+    } catch (err) {
+      showUnconfigured();
+      postUnreadCount(0);
+    }
+  }
+
+  function showUnconfigured() {
+    document.getElementById('utilBar').style.display = 'none';
+    document.getElementById('listScroll').innerHTML = `
+      <div class="works-unconfigured">
+        <div class="unconfigured-icon">✉️</div>
+        <div class="unconfigured-title">메일함 연동 대기 중</div>
+        <div class="unconfigured-desc">사내 네이버웍스 메일과 연동하려면 서버의 naver_works_api.php 파일 상단에 API 인증키 등록이 필요합니다.</div>
+        <a href="https://developers.worksmobile.com/" target="_blank" rel="noopener" class="unconfigured-link">인증키 발급 안내 ↗</a>
+      </div>`;
+  }
+
+  function showLoginForm(clientId, isMockMode) {
+    document.getElementById('utilBar').style.display = 'none';
+    const guideText = isMockMode
+      ? '현재 데모 모드입니다. 로그인 클릭 시 즉시 테스트 로그인이 완료됩니다.'
+      : '네이버웍스 로그인 시 본인의 받은메일함과 실시간 연동됩니다. (로그인 창이 팝업으로 열립니다.)';
+    document.getElementById('listScroll').innerHTML = `
+      <div class="works-unconfigured">
+        <div class="unconfigured-icon">🔒</div>
+        <div class="unconfigured-title">메일함 연동 로그인 필요</div>
+        <div class="unconfigured-desc">${esc(guideText)}</div>
+        <button class="unconfigured-link" onclick="doLogin('${esc(clientId)}', ${isMockMode ? 'true' : 'false'})">🔑 네이버웍스 로그인</button>
+      </div>`;
+  }
+
+  function renderMails(data) {
+    document.getElementById('listScroll').innerHTML = '<ul class="works-list" id="mailList"></ul>';
+    const mailList = document.getElementById('mailList');
+    if (data.mails && data.mails.length > 0) {
+      mails = data.mails;
+      mailList.innerHTML = data.mails.map((m, idx) => `
+        <li class="${m.isUnread ? 'unread' : ''}" onclick="openDetail(${idx})">
+          <div class="mail-item-left">
+            <span class="mail-subject">${esc(m.subject)}</span>
+            <span class="mail-sender">${esc(m.senderName)}${m.senderEmail ? ' (' + esc(m.senderEmail) + ')' : ''}</span>
+          </div>
+          <span class="mail-date">${esc(m.receivedTime)}</span>
+        </li>`).join('');
+    } else {
+      mailList.innerHTML = '<li class="list-placeholder">새로운 메일이 없습니다.</li>';
+    }
+  }
+
+  // ── 상세보기 모달 ─────────────────────────────
+  function openDetail(idx) {
+    const m = mails[idx]; if (!m) return;
+    document.getElementById('detailTitle').textContent = m.subject || '(제목 없음)';
+    document.getElementById('detailMeta').textContent =
+      `보낸사람: ${m.senderName || ''}${m.senderEmail ? ' <' + m.senderEmail + '>' : ''} · ${m.receivedTime || ''}`;
+    document.getElementById('detailBody').textContent =
+      m.body || '(본문 미리보기가 제공되지 않는 메일입니다. 네이버웍스에서 확인해 주세요.)';
+    document.getElementById('detailLink').href = m.link || 'https://mail.worksmobile.com/';
+    document.getElementById('detailModal').classList.add('show');
+  }
+  function closeDetail() { document.getElementById('detailModal').classList.remove('show'); }
+
+  // ── OAuth 로그인 (팝업 방식: 네이버웍스 로그인 화면은 iframe 내부에서 열 수 없음) ──
+  function doLogin(clientId, isMockMode) {
+    if (isMockMode) {
+      const now = Date.now();
+      localStorage.setItem(TOKEN_KEY, 'mock_access_token_' + now);
+      localStorage.setItem(REFRESH_KEY, 'mock_refresh_token_' + now);
+      localStorage.setItem(EXPIRES_KEY, String(now + 86400 * 1000));
+      showToast('✓ 테스트 로그인이 완료되었습니다.');
+      fetchData();
+      return;
+    }
+    // Redirect URL: 이 모듈 파일 자신 (Developer Console에 등록 필요)
+    const redirectUri = window.location.origin + window.location.pathname;
+    const loginUrl = 'https://auth.worksmobile.com/oauth2/v2.0/authorize'
+      + '?client_id=' + encodeURIComponent(clientId)
+      + '&redirect_uri=' + encodeURIComponent(redirectUri)
+      + '&scope=' + encodeURIComponent('mail.read')
+      + '&response_type=code&state=works_mail_module';
+
+    const popup = window.open(loginUrl, 'worksLogin', 'width=480,height=640,menubar=no,toolbar=no');
+    if (!popup) {
+      // 팝업 차단 시 최상위 창 전체를 로그인 페이지로 이동
+      try { window.top.location.href = loginUrl; }
+      catch (e) { window.location.href = loginUrl; }
+    }
+  }
+
+  function doLogout() {
+    clearTokens();
+    showToast('✓ 네이버웍스 로그아웃이 완료되었습니다.');
+    postUnreadCount(0);
+    fetchData();
+  }
+
+  // ── 토큰 만료 확인 및 자동 갱신 ─────────────────────────────
+  async function checkAndRefreshToken() {
+    const accessToken = localStorage.getItem(TOKEN_KEY);
+    const refreshToken = localStorage.getItem(REFRESH_KEY);
+    const expiresStr = localStorage.getItem(EXPIRES_KEY);
+    if (!accessToken || !expiresStr) return null;
+
+    // 만료 5분 전부터 갱신 시도
+    if (parseInt(expiresStr, 10) - Date.now() < 300 * 1000) {
+      if (!refreshToken) { clearTokens(); return null; }
+      try {
+        const res = await fetch(API + '?action=refresh_token&refresh_token=' + encodeURIComponent(refreshToken));
+        if (!res.ok) throw new Error('refresh failed');
+        const data = await res.json();
+        if (data.success && data.access_token) {
+          localStorage.setItem(TOKEN_KEY, data.access_token);
+          localStorage.setItem(EXPIRES_KEY, String(Date.now() + (data.expires_in || 3600) * 1000));
+          return data.access_token;
+        }
+        clearTokens();
+        return null;
+      } catch (e) {
+        return accessToken; // 갱신 실패 시 기존 토큰으로 일단 시도
+      }
+    }
+    return accessToken;
+  }
+
+  // ── OAuth 콜백 처리 (팝업 또는 최상위 창으로 ?code= 도착) ─────────────
+  async function handleOAuthCallback() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    if (!code) return false;
+
+    try {
+      const cfgRes = await fetch(API + '?action=config', { cache: 'no-cache' });
+      if (!cfgRes.ok) throw new Error('Config load failed');
+      const config = await cfgRes.json();
+
+      if (config.isMockMode) {
+        const now = Date.now();
+        localStorage.setItem(TOKEN_KEY, 'mock_access_token_' + now);
+        localStorage.setItem(REFRESH_KEY, 'mock_refresh_token_' + now);
+        localStorage.setItem(EXPIRES_KEY, String(now + 86400 * 1000));
+      } else {
+        const redirectUri = window.location.origin + window.location.pathname;
+        const res = await fetch(API + '?action=get_token&code=' + encodeURIComponent(code) + '&redirect_uri=' + encodeURIComponent(redirectUri));
+        if (!res.ok) throw new Error('Token exchange failed');
+        const data = await res.json();
+        if (data.success && data.access_token) {
+          localStorage.setItem(TOKEN_KEY, data.access_token);
+          if (data.refresh_token) localStorage.setItem(REFRESH_KEY, data.refresh_token);
+          localStorage.setItem(EXPIRES_KEY, String(Date.now() + (data.expires_in || 3600) * 1000));
+        } else {
+          alert('인증 토큰 획득 실패: ' + (data.message || '알 수 없는 오류'));
+        }
+      }
+    } catch (e) {
+      alert('서버 통신 장애로 인증 처리를 완료하지 못했습니다.');
+    }
+
+    // 팝업으로 열린 경우: 창을 닫으면 원래 화면(iframe)이 storage 이벤트로 자동 갱신됨
+    if (window.opener && window.opener !== window) {
+      window.close();
+      return true;
+    }
+    // 최상위 창으로 열린 경우: code 파라미터 제거 후 새로고침
+    urlParams.delete('code');
+    urlParams.delete('state');
+    urlParams.delete('error');
+    const q = urlParams.toString();
+    window.location.replace(window.location.pathname + (q ? '?' + q : ''));
+    return true;
+  }
+
+  // ── 초기화 ─────────────────────────────
+  (async function init() {
+    const handled = await handleOAuthCallback();
+    if (handled) return;
+
+    fetchData();
+    setInterval(fetchData, 5 * 60 * 1000);
+
+    // 팝업 로그인 완료 시 localStorage 변경 감지 → 목록 자동 갱신
+    window.addEventListener('storage', e => {
+      if (e.key === TOKEN_KEY) fetchData();
+    });
+  })();
+</script>
+</body>
+</html>
