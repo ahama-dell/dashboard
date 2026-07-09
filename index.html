@@ -34,15 +34,12 @@
 
     /* ══════════ APP SHELL ══════════ */
     #appShell {
-      max-width: 1480px; min-height: calc(100vh - 48px);
-      margin: 24px auto;
+      width: 100%; min-height: 100vh;  /* 세로 스크롤 허용: height 대신 min-height */
       display: flex;
       background: rgba(255, 255, 255, 0.42);
-      border: 1px solid rgba(255, 255, 255, 0.75);
-      border-radius: 28px;
-      box-shadow: 0 30px 70px rgba(30, 80, 90, 0.16);
+      border: none; border-radius: 0; box-shadow: none;
       backdrop-filter: blur(20px);
-      overflow: hidden;
+      /* overflow: hidden 제거 → 세로 스크롤 허용 */
     }
 
     /* ══════════ SIDEBAR ══════════ */
@@ -88,6 +85,7 @@
       flex: 1; min-width: 0;
       padding: 28px 32px 24px;
       display: flex; flex-direction: column;
+      /* overflow: hidden 제거 → 세로 스크롤 허용 */
     }
 
     /* topbar */
@@ -122,13 +120,61 @@
     }
     body.admin-on .admin-save-btn { display: inline-flex; }
 
-    /* content grid */
+    /* content grid (자유 배치 캔버스) */
     #contentGrid {
-      flex: 1;
-      display: grid; grid-template-columns: 1.12fr 0.95fr; gap: 20px;
-      align-items: stretch;
+      /* 높이는 JS(applyLayout)가 window.innerHeight 기준으로 직접 지정 */
+      position: relative;
+      width: 100%;
     }
-    .col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+    .block-panel {
+      position: absolute;
+      transition: box-shadow 0.2s, background 0.2s;
+    }
+    .panel-header {
+      cursor: default; user-select: none;
+    }
+    body.admin-on .panel-header { cursor: move; }
+    
+    .block-panel.dragging, .block-panel.resizing {
+      z-index: 100; transition: none !important;
+    }
+    .block-panel.dragging {
+      box-shadow: 0 30px 60px rgba(0,0,0,0.25) !important;
+    }
+
+    /* 관리자 모드: 블록 이름(ID) 표시 */
+    body.admin-on .block-panel::after {
+      content: "ID: " attr(data-block);
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(220, 38, 38, 0.9);
+      color: white;
+      font-size: 11px;
+      font-weight: bold;
+      padding: 3px 6px;
+      border-radius: 4px;
+      z-index: 1000;
+      pointer-events: none;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    /* 리사이징 핸들 */
+    .rs-handle {
+      position: absolute; width: 14px; height: 14px;
+      background: #fff; border: 1.5px solid var(--teal);
+      border-radius: 50%; opacity: 0; transition: opacity 0.2s;
+      z-index: 10; pointer-events: none;
+    }
+    body.admin-on .rs-handle { opacity: 1; pointer-events: auto; }
+    .rs-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
+    
+    /* 스냅 가이드라인 */
+    .snap-guide {
+      position: fixed; background: #00d2d3; z-index: 9999;
+      pointer-events: none; opacity: 0; transition: opacity 0.1s;
+    }
+    .snap-guide.show { opacity: 0.8; }
 
     .card {
       background: var(--card-bg);
@@ -149,19 +195,44 @@
     .card-head .head-link:hover { text-decoration: underline; }
 
     /* placeholder 카드 (추후 콘텐츠) */
-    .placeholder-card { display: flex; flex-direction: column; }
+    .placeholder-card {
+      display: flex; flex-direction: column;
+      padding: 0;          /* .card의 20px 22px 패딩을 제거 — iframe이 블록 가장자리까지 정확히 채우기 위해 */
+      overflow: hidden;
+    }
+    /* 플레이스홀더 카드의 헤더에만 패딩 부여 */
+    .placeholder-card .card-head {
+      padding: 14px 20px;
+      margin-bottom: 0;
+      flex-shrink: 0;
+    }
     .ph-body {
       flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
       border: 1.5px dashed rgba(23, 119, 125, 0.25); border-radius: var(--radius-md);
       color: var(--text-dim); font-size: 0.76rem; min-height: 90px;
       background: rgba(255, 255, 255, 0.3);
+      margin: 0 12px 12px;
     }
     .ph-body .ph-ico { font-size: 1.4rem; opacity: 0.6; }
 
     /* HTML 콘텐츠가 입력된 블록 본문 */
     .content-body {
-      flex: 1; min-height: 90px; overflow: auto;
+      flex: 1; min-height: 90px;
+      /* 좌우 일정 여백(20px), 하단 여백 부여. 우측 여백 최소화 유지 */
+      padding: 0 20px 20px 20px;
+      overflow-y: auto; overflow-x: hidden;
       font-size: 0.82rem; line-height: 1.6; color: var(--text-pri);
+      text-align: left; /* 기본적으로 좌측 정렬 */
+    }
+    .content-body iframe {
+      width: 100%;
+      height: 100%;
+      min-height: 300px;
+      border: none;
+      display: block;
+      /* 사이즈가 정해진 iframe일 경우 왼쪽 기준으로 우측을 자름 */
+      object-position: left top;
+      transform-origin: top left;
     }
     .content-body img { max-width: 100%; }
     .content-body table { border-collapse: collapse; width: 100%; }
@@ -177,7 +248,8 @@
 
     /* ══════════ 공사별 미니 카드 ══════════ */
     #projectGrid {
-      display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+      /* JS가 블록 크기와 카드 개수에 맞춰 자동으로 열/행을 계산하여 꽉 채움 */
+      display: grid; gap: 14px;
     }
     .mini-card {
       background: var(--card-bg);
@@ -187,8 +259,11 @@
       padding: 12px 14px;
       text-decoration: none; color: inherit;
       display: flex; flex-direction: column; gap: 6px;
+      /* 아래 여백이 남지 않도록 내부 콘텐츠를 위아래로 분산 배치 */
+      justify-content: space-between; height: 100%;
       transition: transform 0.16s, box-shadow 0.16s;
     }
+    .mini-card.dragging-card { opacity: 0.5; transform: scale(0.95); }
     .mini-card:hover { transform: translateY(-3px); box-shadow: 0 16px 34px rgba(23, 90, 96, 0.16); }
     .mini-top { display: flex; align-items: center; gap: 8px; }
     .mini-icon {
@@ -201,9 +276,10 @@
       font-size: 0.73rem; font-weight: 700; color: var(--text-pri); line-height: 1.3;
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     }
-    .mini-value-row { display: flex; align-items: baseline; gap: 5px; }
-    .mini-value { font-size: 1.2rem; font-weight: 800; color: var(--text-pri); letter-spacing: -0.5px; }
-    .mini-unit { font-size: 0.68rem; font-weight: 700; color: var(--text-sec); }
+    .mini-value-row { display: flex; align-items: baseline; gap: 5px; margin-top: auto; }
+    /* 수량 크기 2배 (1.2rem -> 2.4rem) */
+    .mini-value { font-size: 2.4rem; font-weight: 800; color: var(--text-pri); letter-spacing: -0.5px; }
+    .mini-unit { font-size: 0.8rem; font-weight: 700; color: var(--text-sec); }
 
     /* 관리자: 카드 편집/삭제 오버레이 버튼 */
     .mini-card { position: relative; }
@@ -417,60 +493,65 @@
       </div>
 
       <div id="contentGrid">
-
-        <!-- ── 좌측 컬럼 ── -->
-        <section class="col">
-          <!-- 콘텐츠 블록 1 -->
-          <div class="card placeholder-card" data-block="block1" style="min-height:230px;">
-            <div class="card-head">
-              <h2 class="block-title">콘텐츠 영역 1</h2>
-              <button class="head-link admin-only" onclick="openContentEdit('block1')">✏️ 편집</button>
-            </div>
-            <div class="block-body ph-body">
-              <span class="ph-ico">📋</span>
-              <span>추가 콘텐츠가 이곳에 배치됩니다</span>
-            </div>
+        <!-- 콘텐츠 블록 1 -->
+        <div class="card placeholder-card block-panel" id="block1" data-block="block1" style="min-height:230px;">
+          <div class="card-head panel-header" data-panel="block1">
+            <h2 class="block-title">콘텐츠 영역 1</h2>
+            <button class="head-link admin-only" onclick="openContentEdit('block1')">✏️ 편집</button>
           </div>
-
-          <!-- 콘텐츠 블록 2 -->
-          <div class="card placeholder-card" data-block="block2" style="flex:1;">
-            <div class="card-head">
-              <h2 class="block-title">콘텐츠 영역 2</h2>
-              <button class="head-link admin-only" onclick="openContentEdit('block2')">✏️ 편집</button>
-            </div>
-            <div class="block-body ph-body">
-              <span class="ph-ico">📋</span>
-              <span>추가 콘텐츠가 이곳에 배치됩니다</span>
-            </div>
+          <div class="block-body ph-body">
+            <span class="ph-ico">📋</span>
+            <span>추가 콘텐츠가 이곳에 배치됩니다</span>
           </div>
-        </section>
+          <div class="rs-handle se admin-only" data-panel="block1" data-dir="se"></div>
+        </div>
 
-        <!-- ── 우측 컬럼 ── -->
-        <section class="col">
-          <!-- 콘텐츠 블록: 현황 요약 -->
-          <div class="card placeholder-card" data-block="summary">
-            <div class="card-head">
-              <h2 class="block-title">현황 요약</h2>
-              <button class="head-link admin-only" onclick="openContentEdit('summary')">✏️ 편집</button>
-            </div>
-            <div class="block-body ph-body">
-              <span class="ph-ico">📊</span>
-              <span>요약 통계가 이곳에 배치됩니다</span>
-            </div>
+        <!-- 콘텐츠 블록 2 -->
+        <div class="card placeholder-card block-panel" id="block2" data-block="block2">
+          <div class="card-head panel-header" data-panel="block2">
+            <h2 class="block-title">콘텐츠 영역 2</h2>
+            <button class="head-link admin-only" onclick="openContentEdit('block2')">✏️ 편집</button>
           </div>
+          <div class="block-body ph-body">
+            <span class="ph-ico">📋</span>
+            <span>추가 콘텐츠가 이곳에 배치됩니다</span>
+          </div>
+          <div class="rs-handle se admin-only" data-panel="block2" data-dir="se"></div>
+        </div>
 
-          <!-- 공사별 대시보드 미니 카드 -->
-          <div id="projectGrid">
+        <!-- 콘텐츠 블록: 현황 요약 -->
+        <div class="card placeholder-card block-panel" id="summary" data-block="summary">
+          <div class="card-head panel-header" data-panel="summary">
+            <h2 class="block-title">현황 요약</h2>
+            <button class="head-link admin-only" onclick="openContentEdit('summary')">✏️ 편집</button>
+          </div>
+          <div class="block-body ph-body">
+            <span class="ph-ico">📊</span>
+            <span>요약 통계가 이곳에 배치됩니다</span>
+          </div>
+          <div class="rs-handle se admin-only" data-panel="summary" data-dir="se"></div>
+        </div>
+
+        <!-- 공사별 대시보드 미니 카드 -->
+        <div class="card block-panel" id="projectGroup" data-block="projectGroup"
+             style="padding:16px; display:flex; flex-direction:column; overflow:hidden;">
+          <div class="card-head panel-header" data-panel="projectGroup" style="flex-shrink:0;">
+            <h2 class="block-title">공사 현장 대시보드 목록</h2>
+          </div>
+          <div id="projectGrid" class="block-body"
+               style="flex:1; min-height:0; overflow-y:auto; margin-top:8px;">
             <!-- JS 렌더링 -->
           </div>
+          <div class="rs-handle se admin-only" data-panel="projectGroup" data-dir="se"></div>
+        </div>
 
-          <!-- 온습도 대시보드 카드 (파형 그래프만) -->
-          <a id="tempCard" href="dashboard/temp.html" title="양생실 실시간 온습도 대시보드로 이동">
-            <iframe src="dashboard/temp.html?embed=1" title="양생실 온습도 차트" loading="lazy"></iframe>
-            <span class="temp-tag">🌡️ 양생실 실시간 온습도</span>
-          </a>
-        </section>
-
+        <!-- 온습도 대시보드 카드 -->
+        <a class="card block-panel temp-panel" id="tempCardWrap" data-block="tempCardWrap" href="dashboard/temp.html" title="양생실 실시간 온습도 대시보드로 이동" style="display:block; padding:0; overflow:hidden;">
+          <div class="panel-header" data-panel="tempCardWrap" style="position:absolute; top:0; left:0; right:0; height:30px; z-index:5;"></div>
+          <iframe src="dashboard/temp.html?embed=1" title="양생실 온습도 차트" loading="lazy" style="width:100%;height:100%;border:none;pointer-events:none;"></iframe>
+          <span class="temp-tag" style="position:absolute; top:10px; left:12px; z-index:2; pointer-events:none;">🌡️ 양생실 실시간 온습도</span>
+          <div class="rs-handle se admin-only" data-panel="tempCardWrap" data-dir="se"></div>
+        </a>
       </div>
 
       <footer>
@@ -560,6 +641,240 @@
 
   <div id="toast"></div>
 
+  <!-- portal_drag.js 코드 인라인 통합 (외부 파일 로딩 불필요) -->
+  <script>
+    /* ════ 드래그·리사이즈 엔진 ════ */
+    function applyLayout() {
+      const cg = document.getElementById('contentGrid');
+      if (!cg || !state || !state.layout) return;
+
+      // 보드 너비: contentGrid 실제 너비 사용
+      const boardW = cg.clientWidth;
+      if (boardW === 0) { requestAnimationFrame(applyLayout); return; }
+
+      // 보드 높이: 뷰포트에서 topbar 영역을 뺀 값으로 고정 기준점 설정
+      // (세로 스크롤은 이 높이 밖으로 블록을 배치하면 자연스럽게 발생)
+      const topbar = document.getElementById('topbar');
+      const topbarH = topbar ? (topbar.offsetHeight + 24 + 28) : 180; // 28px padding-top + 24px margin-bottom
+      const boardH = Math.max(500, window.innerHeight - topbarH);
+
+      // contentGrid 높이를 블록들이 차지하는 최대 하단 위치로 동적 조절
+      let maxBottom = boardH;
+      Object.keys(state.layout).forEach(id => {
+        const L = state.layout[id];
+        const bottom = Math.round((L.y + L.h) * boardH);
+        if (bottom > maxBottom) maxBottom = bottom;
+      });
+      cg.style.height = (maxBottom + 32) + 'px'; // 여백 32px 추가
+
+      Object.keys(state.layout).forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const L = state.layout[id];
+        el.style.left   = Math.round(L.x * boardW) + 'px';
+        el.style.top    = Math.round(L.y * boardH) + 'px';
+        el.style.width  = Math.round(L.w * boardW) + 'px';
+        el.style.height = Math.round(L.h * boardH) + 'px';
+      });
+
+      // startDrag/startResize 에서 참조할 보드 크기를 전역에 보관
+      window._portalBoardW = boardW;
+      window._portalBoardH = boardH;
+    }
+
+    let _dragJustEnded = false;
+
+    function attachInteractions() {
+      document.querySelectorAll('.panel-header[data-panel]').forEach(h => {
+        h.addEventListener('mousedown', e => {
+          if (!isAdmin()) return;
+          if (e.target.closest('button') || e.target.closest('input')) return;
+          const id = h.dataset.panel;
+          if (!id || !state.layout[id]) return;
+          startDrag(e, id);
+        });
+      });
+      document.querySelectorAll('.rs-handle[data-panel]').forEach(h => {
+        h.addEventListener('mousedown', e => {
+          if (!isAdmin()) return;
+          const id = h.dataset.panel;
+          if (!id || !state.layout[id]) return;
+          startResize(e, id, h.dataset.dir, h);
+        });
+      });
+      document.querySelectorAll('a.block-panel').forEach(el => {
+        el.addEventListener('click', e => {
+          if (_dragJustEnded) { e.preventDefault(); _dragJustEnded = false; }
+        });
+      });
+      ['snapGuideV','snapGuideH'].forEach(gid => {
+        if (!document.getElementById(gid)) {
+          const g = document.createElement('div');
+          g.id = gid; g.className = 'snap-guide';
+          document.body.appendChild(g);
+        }
+      });
+      window.addEventListener('resize', applyLayout);
+    }
+
+    const SNAP_THRESHOLD = 15;
+    function getSnapTargets(excludeId) {
+      const cg = document.getElementById('contentGrid');
+      const boardW = cg.clientWidth, boardH = cg.clientHeight;
+      const xs = [], ys = [];
+      Object.keys(state.layout).forEach(id => {
+        if (id === excludeId) return;
+        const L = state.layout[id]; if (!L) return;
+        const pxX = L.x*boardW, pxY = L.y*boardH, pxW = L.w*boardW, pxH = L.h*boardH;
+        xs.push(pxX, pxX+pxW, pxX+pxW/2);
+        ys.push(pxY, pxY+pxH, pxY+pxH/2);
+      });
+      xs.push(0, boardW, boardW/2); ys.push(0, boardH, boardH/2);
+      return { xs, ys };
+    }
+    function nearestSnap(val, cands) {
+      let best=null, bestD=SNAP_THRESHOLD;
+      for (const c of cands) { const d=Math.abs(val-c); if (d<bestD){bestD=d;best=c;} }
+      return best;
+    }
+    function showVGuide(cg, bx) {
+      const g=document.getElementById('snapGuideV'); if(!g) return;
+      const r=cg.getBoundingClientRect();
+      g.style.cssText=`left:${r.left+bx}px;top:${r.top}px;width:1px;height:${r.height}px`;
+      g.classList.add('show');
+    }
+    function showHGuide(cg, by) {
+      const g=document.getElementById('snapGuideH'); if(!g) return;
+      const r=cg.getBoundingClientRect();
+      g.style.cssText=`top:${r.top+by}px;left:${r.left}px;width:${r.width}px;height:1px`;
+      g.classList.add('show');
+    }
+    function hideGuides() {
+      document.querySelectorAll('.snap-guide').forEach(g=>g.classList.remove('show'));
+    }
+
+    function startDrag(e, id) {
+      e.preventDefault();
+      const panel = document.getElementById(id);
+      const cg = document.getElementById('contentGrid');
+      // boardH는 applyLayout에서 계산한 고정 기준값 사용 (contentGrid가 늘어나도 비율 일관성 유지)
+      const boardW = window._portalBoardW || cg.clientWidth;
+      const boardH = window._portalBoardH || Math.max(500, window.innerHeight - 180);
+      const L0 = {
+        x: state.layout[id].x * boardW, y: state.layout[id].y * boardH,
+        w: state.layout[id].w * boardW, h: state.layout[id].h * boardH
+      };
+      const startX = e.clientX, startY = e.clientY;
+      let hasMoved = false;
+      panel.classList.add('dragging');
+
+      function onMove(ev) {
+        const dx = ev.clientX-startX, dy = ev.clientY-startY;
+        if (!hasMoved && (Math.abs(dx)>5||Math.abs(dy)>5)) hasMoved=true;
+        // X: 좌우 범위 제한 / Y: 위쪽(0) 제한만, 아래는 무제한 스크롤
+        let nx = Math.max(0, Math.min(boardW-L0.w, L0.x+dx));
+        let ny = Math.max(0, L0.y+dy);
+        const T = getSnapTargets(id);
+        const cx=nx+L0.w/2, cy=ny+L0.h/2;
+        const sxL=nearestSnap(nx,T.xs), sxR=nearestSnap(nx+L0.w,T.xs), sxC=nearestSnap(cx,T.xs);
+        let xGuide=null;
+        if (sxL!==null&&(sxR===null||Math.abs(sxL-nx)<=Math.abs(sxR-(nx+L0.w)))&&(sxC===null||Math.abs(sxL-nx)<=Math.abs(sxC-cx))){nx=sxL;xGuide=sxL;}
+        else if(sxR!==null&&(sxC===null||Math.abs(sxR-(nx+L0.w))<=Math.abs(sxC-cx))){nx=sxR-L0.w;xGuide=sxR;}
+        else if(sxC!==null){nx=sxC-L0.w/2;xGuide=sxC;}
+        const syT=nearestSnap(ny,T.ys), syB=nearestSnap(ny+L0.h,T.ys), syC=nearestSnap(cy,T.ys);
+        let yGuide=null;
+        if (syT!==null&&(syB===null||Math.abs(syT-ny)<=Math.abs(syB-(ny+L0.h)))&&(syC===null||Math.abs(syT-ny)<=Math.abs(syC-cy))){ny=syT;yGuide=syT;}
+        else if(syB!==null&&(syC===null||Math.abs(syB-(ny+L0.h))<=Math.abs(syC-cy))){ny=syB-L0.h;yGuide=syB;}
+        else if(syC!==null){ny=syC-L0.h/2;yGuide=syC;}
+        if(xGuide!==null) showVGuide(cg,xGuide); else document.getElementById('snapGuideV')?.classList.remove('show');
+        if(yGuide!==null) showHGuide(cg,yGuide); else document.getElementById('snapGuideH')?.classList.remove('show');
+        panel.style.left=nx+'px'; panel.style.top=ny+'px';
+        // 블록이 contentGrid 아래로 나가면 실시간으로 contentGrid 높이 확장
+        const needed = ny + L0.h + 32;
+        if (needed > cg.offsetHeight) cg.style.height = needed + 'px';
+      }
+      function onUp() {
+        document.removeEventListener('mousemove',onMove);
+        document.removeEventListener('mouseup',onUp);
+        panel.classList.remove('dragging');
+        hideGuides();
+        if (hasMoved) {
+          _dragJustEnded=true;
+          setTimeout(()=>{_dragJustEnded=false;},200);
+          state.layout[id]={
+            x:(parseFloat(panel.style.left)||0)/boardW,
+            y:(parseFloat(panel.style.top)||0)/boardH,
+            w:L0.w/boardW, h:L0.h/boardH
+          };
+          applyLayout();
+          const btn=document.querySelector('.admin-save-btn:last-of-type');
+          if(btn) btn.style.background='#ffd700';
+        }
+      }
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
+    }
+
+    function startResize(e, id, dir, handle) {
+      e.preventDefault(); e.stopPropagation();
+      const panel = document.getElementById(id);
+      const cg = document.getElementById('contentGrid');
+      // boardH는 applyLayout에서 계산한 고정 기준값 사용
+      const boardW = window._portalBoardW || cg.clientWidth;
+      const boardH = window._portalBoardH || Math.max(500, window.innerHeight - 180);
+      const L0 = {
+        x:state.layout[id].x*boardW, y:state.layout[id].y*boardH,
+        w:state.layout[id].w*boardW, h:state.layout[id].h*boardH
+      };
+      const startX=e.clientX, startY=e.clientY;
+      let hasMoved=false;
+      panel.classList.add('resizing'); handle.classList.add('active');
+
+      function onMove(ev) {
+        const dx=ev.clientX-startX, dy=ev.clientY-startY;
+        if(!hasMoved&&(Math.abs(dx)>3||Math.abs(dy)>3)) hasMoved=true;
+        let nx=L0.x, ny=L0.y, nw=L0.w, nh=L0.h;
+        if(dir.includes('e')) nw=L0.w+dx;
+        if(dir.includes('s')) nh=L0.h+dy;
+        if(nw<200) nw=200; if(nh<150) nh=150;
+        // X: 좌우 제한 / Y: 위쪽 제한만, 아래는 무제한 스크롤
+        nx=Math.max(0, Math.min(boardW-nw, nx));
+        ny=Math.max(0, ny);
+        const T=getSnapTargets(id);
+        let xGuide=null, yGuide=null;
+        if(dir.includes('e')){const s=nearestSnap(nx+nw,T.xs);if(s!==null&&s>nx+200){nw=s-nx;xGuide=s;}}
+        if(dir.includes('s')){const s=nearestSnap(ny+nh,T.ys);if(s!==null&&s>ny+150){nh=s-ny;yGuide=s;}}
+        if(xGuide!==null) showVGuide(cg,xGuide); else document.getElementById('snapGuideV')?.classList.remove('show');
+        if(yGuide!==null) showHGuide(cg,yGuide); else document.getElementById('snapGuideH')?.classList.remove('show');
+        panel.style.left=nx+'px'; panel.style.top=ny+'px';
+        panel.style.width=nw+'px'; panel.style.height=nh+'px';
+        // 블록이 contentGrid 아래로 나가면 실시간으로 contentGrid 높이 확장
+        const needed = ny + nh + 32;
+        if (needed > cg.offsetHeight) cg.style.height = needed + 'px';
+      }
+      function onUp() {
+        document.removeEventListener('mousemove',onMove);
+        document.removeEventListener('mouseup',onUp);
+        panel.classList.remove('resizing'); handle.classList.remove('active');
+        hideGuides();
+        if(hasMoved){
+          _dragJustEnded=true;
+          setTimeout(()=>{_dragJustEnded=false;},200);
+          state.layout[id]={
+            x:(parseFloat(panel.style.left)||0)/boardW,
+            y:(parseFloat(panel.style.top)||0)/boardH,
+            w:(parseFloat(panel.style.width)||200)/boardW,
+            h:(parseFloat(panel.style.height)||150)/boardH
+          };
+          applyLayout();
+          const btn=document.querySelector('.admin-save-btn:last-of-type');
+          if(btn) btn.style.background='#ffd700';
+        }
+      }
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
+    }
+  </script>
   <script>
     // ══════════ 상태 ══════════
     const state = {
@@ -567,7 +882,16 @@
       logoSrc: '',
       cards: [],
       contentBlocks: {},   // { block1|block2|summary: { title, html } }
+      layout: {},          // { x, y, w, h } 비율 저장
       loadedPortal: null   // 저장 시 기존 필드 보존용 원본
+    };
+
+    const DEFAULT_LAYOUT = {
+      block2: { x: 0, y: 0, w: 0.54, h: 0.6 },
+      tempCardWrap: { x: 0, y: 0.6, w: 0.54, h: 0.4 },
+      summary: { x: 0.54, y: 0, w: 0.46, h: 0.25 },
+      block1: { x: 0.54, y: 0.25, w: 0.46, h: 0.25 },
+      projectGroup: { x: 0.54, y: 0.5, w: 0.46, h: 0.5 }
     };
 
     const BLOCK_DEFAULTS = {
@@ -636,7 +960,7 @@
             <button class="danger" title="삭제" onclick="event.preventDefault();event.stopPropagation();deleteCard('${esc(c.id)}')">✕</button>
           </div>`;
         return `
-        <a class="mini-card" href="${esc(c.href)}" data-project="${esc(no)}" title="${esc(c.name)}">
+        <a class="mini-card" href="${esc(c.href)}" data-project="${esc(no)}" data-id="${esc(c.id)}" title="${esc(c.name)}" ${isAdmin() ? 'draggable="true"' : ''}>
           ${adminBtns}
           <div class="mini-top">
             <div class="mini-icon" style="background:${ICON_BG[i % ICON_BG.length]};">${iconHtml}</div>
@@ -660,6 +984,88 @@
         html = '<div class="ph-body" style="grid-column:1/-1;"><span class="ph-ico">🏗️</span><span>등록된 공사 대시보드가 없습니다</span></div>';
       }
       grid.innerHTML = html;
+      attachProjectDragEvents(grid);
+      fitProjectGrid();
+    }
+
+    // ══════════ 공사별 카드 자동 격자 맞춤 ══════════
+    function fitProjectGrid() {
+      const grid = document.getElementById('projectGrid');
+      if (!grid) return;
+      const count = grid.children.length;
+      if (count === 0) return;
+      
+      const w = grid.clientWidth;
+      const h = grid.clientHeight;
+      if (w === 0 || h === 0) return;
+
+      let bestCols = 1;
+      let bestRows = count;
+      let bestScore = 0;
+      
+      for (let cols = 1; cols <= count; cols++) {
+        const rows = Math.ceil(count / cols);
+        const cellW = w / cols;
+        const cellH = h / rows;
+        const ratio = cellW / (cellH || 1);
+        let score = cellW * cellH;
+        if (ratio < 0.8 || ratio > 3.0) score *= 0.3; // 극단적 비율 감점
+        
+        if (score > bestScore) {
+          bestScore = score;
+          bestCols = cols;
+          bestRows = rows;
+        }
+      }
+      grid.style.gridTemplateColumns = `repeat(${bestCols}, 1fr)`;
+      grid.style.gridTemplateRows = `repeat(${bestRows}, 1fr)`;
+    }
+    const projectGridObserver = new ResizeObserver(() => fitProjectGrid());
+
+    // ══════════ 미니 카드 드래그 앤 드롭 순서 변경 ══════════
+    let _dragCardId = null;
+    function attachProjectDragEvents(grid) {
+      if (!isAdmin()) return;
+      grid.ondragstart = e => {
+        const card = e.target.closest('.mini-card[data-id]');
+        if (!card) return;
+        _dragCardId = card.dataset.id;
+        e.dataTransfer.effectAllowed = 'move';
+        // Firefox 버그 방지용 더미 데이터 세팅
+        e.dataTransfer.setData('text/plain', _dragCardId);
+        setTimeout(() => card.classList.add('dragging-card'), 0);
+      };
+      grid.ondragover = e => {
+        if (!_dragCardId) return;
+        e.preventDefault();
+        const targetCard = e.target.closest('.mini-card[data-id]');
+        if (targetCard && targetCard.dataset.id !== _dragCardId) {
+          const rect = targetCard.getBoundingClientRect();
+          const next = (e.clientX - rect.left) > (rect.width / 2);
+          const draggedCard = grid.querySelector(`[data-id="${_dragCardId}"]`);
+          if (draggedCard) {
+            grid.insertBefore(draggedCard, next ? targetCard.nextSibling : targetCard);
+          }
+        }
+      };
+      grid.ondrop = e => e.preventDefault();
+      grid.ondragend = async e => {
+        const card = e.target.closest('.mini-card[data-id]');
+        if (card) card.classList.remove('dragging-card');
+        if (!_dragCardId) return;
+        _dragCardId = null;
+        
+        // 새 순서로 DOM 배열 읽기
+        const newOrderIds = Array.from(grid.querySelectorAll('.mini-card[data-id]')).map(el => el.dataset.id);
+        if (newOrderIds.length > 0) {
+          const prodCards = state.cards.filter(isProductionCard);
+          const nonProdCards = state.cards.filter(c => !isProductionCard(c));
+          
+          prodCards.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
+          state.cards = [...prodCards, ...nonProdCards];
+          await savePortalData();
+        }
+      };
     }
 
     // ══════════ 신규 현장 추가 ══════════
@@ -1039,6 +1445,7 @@
         if (d.logoSrc) state.logoSrc = d.logoSrc;
         if (Array.isArray(d.cards)) state.cards = d.cards;
         if (d.contentBlocks && typeof d.contentBlocks === 'object') state.contentBlocks = d.contentBlocks;
+        if (d.layout && typeof d.layout === 'object') state.layout = d.layout;
         return true;
       } catch (e) { return false; }
     }
@@ -1051,7 +1458,8 @@
         portalTitle: document.getElementById('portalTitle').textContent.trim(),
         logoSrc: state.logoSrc,
         cards: state.cards,
-        contentBlocks: state.contentBlocks
+        contentBlocks: state.contentBlocks,
+        layout: state.layout
       });
       const pwd = localStorage.getItem('dashboard_password') || '1234';
       try {
@@ -1072,11 +1480,28 @@
         document.getElementById('portalTitle').contentEditable = 'true';
       }
       await loadPortalData();
+
+      // DEFAULT_LAYOUT의 모든 키가 있는지 확인 후 누락된 것만 채워 넣기
+      Object.keys(DEFAULT_LAYOUT).forEach(key => {
+        if (!state.layout[key]) state.layout[key] = Object.assign({}, DEFAULT_LAYOUT[key]);
+      });
+
       document.getElementById('portalTitle').textContent = state.portalTitle;
       applyLogo();
       renderContentBlocks();
       renderProjects();
       loadDailyOutputs();
+
+      const pg = document.getElementById('projectGroup');
+      if (pg) projectGridObserver.observe(pg);
+
+      // DOM이 렌더된 이후에 레이아웃·상호작용 적용
+      requestAnimationFrame(() => {
+        applyLayout();
+        // 항상 이벤트 바인딩 (attachInteractions 내부에서 isAdmin() 체크)
+        attachInteractions();
+        window.addEventListener('resize', applyLayout);
+      });
     })();
   </script>
 </body>
