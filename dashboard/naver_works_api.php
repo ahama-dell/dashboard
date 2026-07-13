@@ -22,6 +22,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
+// curl 확장 미설치 환경에서 500 대신 명확한 안내 반환
+if (!function_exists('curl_init')) {
+    $actionCheck = isset($_GET['action']) ? $_GET['action'] : '';
+    $needsCurl = in_array($actionCheck, ['get_token', 'refresh_token', 'summary']) || $_SERVER['REQUEST_METHOD'] === 'POST';
+    if ($needsCurl) {
+        echo json_encode([
+            "success" => false,
+            "message" => "서버 PHP에 curl 확장이 비활성화되어 있습니다. Web Station > PHP 설정 > 확장 프로그램에서 curl을 체크하세요."
+        ], JSON_UNESCAPED_UNICODE);
+        ob_end_flush();
+        exit;
+    }
+}
+
 // ────────────────────────────────────────────────────────────────
 // 🔑 [설정] 네이버웍스 Developer Console 인증 정보
 //
@@ -31,12 +45,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 //   3. Redirect URL에 메일 모듈 주소 등록
 //      (예: http://218.158.57.134:8080/dashboard/works_mail.html)
 //      ※ 로그인 팝업이 보내는 redirect_uri와 정확히 일치해야 함
-//   4. 아래 두 값을 실제 발급값으로 교체하면 목업 모드가 자동 해제됨
+//   4. 발급값은 이 파일이 아니라 같은 폴더의 works_config.php에 입력
+//      (works_config.php는 git에 올라가지 않으므로 비밀키가 GitHub에 노출되지 않음)
+//      works_config.example.php를 복사해 works_config.php로 만들고 값만 채우면 됨
 // ────────────────────────────────────────────────────────────────
-define('WORKS_CLIENT_ID', 'YOUR_CLIENT_ID');
-define('WORKS_CLIENT_SECRET', 'YOUR_CLIENT_SECRET');
-define('WORKS_SERVICE_ACCOUNT', 'YOUR_SERVICE_ACCOUNT'); // Server API용 서비스 어카운트
-define('WORKS_PRIVATE_KEY', 'YOUR_PRIVATE_KEY');         // JWT 서명용 비밀키 내용
+if (file_exists(__DIR__ . '/works_config.php')) {
+    require __DIR__ . '/works_config.php'; // 실제 인증키 (git 미추적)
+}
+// works_config.php가 없으면 아래 기본값 → 목업(데모) 모드로 동작
+if (!defined('WORKS_CLIENT_ID'))       define('WORKS_CLIENT_ID', 'YOUR_CLIENT_ID');
+if (!defined('WORKS_CLIENT_SECRET'))   define('WORKS_CLIENT_SECRET', 'YOUR_CLIENT_SECRET');
+if (!defined('WORKS_SERVICE_ACCOUNT')) define('WORKS_SERVICE_ACCOUNT', 'YOUR_SERVICE_ACCOUNT'); // Server API용 서비스 어카운트
+if (!defined('WORKS_PRIVATE_KEY'))     define('WORKS_PRIVATE_KEY', 'YOUR_PRIVATE_KEY');         // JWT 서명용 비밀키 내용
 
 // ────────────────────────────────────────────────────────────────
 // 🧪 [기능 선택] 실제 연동 모드 검사
@@ -440,7 +460,9 @@ function getNaverWorksSummary($accessToken) {
                     $plain = html_entity_decode(strip_tags($mailDetail['body']), ENT_QUOTES | ENT_HTML5, 'UTF-8');
                     $plain = preg_replace('/[ \t]+/u', ' ', $plain);
                     $plain = preg_replace('/\n{3,}/u', "\n\n", str_replace("\r", '', $plain));
-                    $bodyContent = mb_substr(trim($plain), 0, 1000, 'UTF-8');
+                    $plain = trim($plain);
+                    // mbstring 확장이 없는 환경에서도 동작하도록 폴백
+                    $bodyContent = function_exists('mb_substr') ? mb_substr($plain, 0, 1000, 'UTF-8') : substr($plain, 0, 3000);
                 }
             }
 
