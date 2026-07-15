@@ -452,13 +452,9 @@ function getNaverWorksSummary($accessToken) {
             $isUnread = (isset($m['status']) && $m['status'] === 'Unread');
             $bodyContent = '';
 
-            // 3) 본문 안전하게 개별 조회 (HTML 원본 유지)
-            if (isset($m['mailId'])) {
-                list($codeMail, $mailDetail) = worksApiGet("{$apiBase}/mail/{$m['mailId']}", $accessToken);
-                if ($codeMail === 200 && !empty($mailDetail['body'])) {
-                    $bodyContent = $mailDetail['body'];
-                }
-            }
+            // 3) 본문 조회 제거 (속도 극대화)
+            // 개별 본문을 조회하지 않으므로 API 호출 1회로 단축됨
+            $bodyContent = '';
 
             $mails[] = [
                 "subject" => isset($m['subject']) && $m['subject'] !== '' ? $m['subject'] : '(제목 없음)',
