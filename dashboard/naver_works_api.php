@@ -519,7 +519,8 @@ if ($action === 'getMailBody') {
     if ($code === 200 && isset($detail['body'])) {
         echo json_encode(["success" => true, "body" => $detail['body']]);
     } else {
-        echo json_encode(["success" => false, "message" => "본문 조회 실패 (HTTP {$code})"]);
+        $extra = ($code === 200) ? " (응답구조: " . json_encode($detail, JSON_UNESCAPED_UNICODE) . ")" : "";
+        echo json_encode(["success" => false, "message" => "본문 조회 실패 (HTTP {$code}){$extra}"]);
     }
     exit;
 }
