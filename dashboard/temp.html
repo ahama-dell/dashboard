@@ -1185,19 +1185,24 @@ function drawChart() {
   const showDate = spanMs > 86400000;
   const wrapW    = document.getElementById('chartWrap').offsetWidth || 900;
   const maxTicks = Math.max(6, Math.min(20, Math.floor(wrapW/75)));
-  /* 임베드: 날짜 없이 시간(HH:MM)만 표시 */
+  /* 임베드: 짝수 시각(02, 04, …, 22, 24)만 표시 — 자정(0시)은 24로 표기 */
   const labels   = isEmbedMode()
-    ? viewRows.map(r => r.time.slice(11,16))
+    ? viewRows.map(r => {
+        const h = parseInt(r.time.slice(11,13), 10);
+        if (isNaN(h)) return r.time.slice(11,16);
+        const eh = Math.floor(h / 2) * 2;
+        return eh === 0 ? '24' : String(eh).padStart(2, '0');
+      })
     : viewRows.map(r => showDate ? r.time.slice(5,16) : r.time.slice(11,16));
 
-  /* 임베드: 30분 경계가 바뀌는 지점만 눈금으로 표시 */
+  /* 임베드: 2시간 경계가 바뀌는 지점만 눈금으로 표시 */
   if (isEmbedMode()) {
     embedTickIdx = new Set();
     let lastBucket = null;
     viewRows.forEach((r, i) => {
-      const h = parseInt(r.time.slice(11,13), 10), m = parseInt(r.time.slice(14,16), 10);
-      if (isNaN(h) || isNaN(m)) return;
-      const bucket = r.time.slice(0,10) + '-' + (h * 2 + (m >= 30 ? 1 : 0));
+      const h = parseInt(r.time.slice(11,13), 10);
+      if (isNaN(h)) return;
+      const bucket = r.time.slice(0,10) + '-' + Math.floor(h / 2);
       if (lastBucket !== null && bucket !== lastBucket) embedTickIdx.add(i);
       lastBucket = bucket;
     });
