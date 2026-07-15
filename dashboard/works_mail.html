@@ -274,7 +274,10 @@
 
     if (m.mailId) {
       try {
-        const res = await fetch('naver_works_api.php?action=getMailBody&mailId=' + encodeURIComponent(m.mailId));
+        const token = localStorage.getItem(TOKEN_KEY);
+        const res = await fetch('naver_works_api.php?action=getMailBody&mailId=' + encodeURIComponent(m.mailId), {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
         const json = await res.json();
         if (json.success && json.body && iframe) {
            iframe.srcdoc = json.body;
