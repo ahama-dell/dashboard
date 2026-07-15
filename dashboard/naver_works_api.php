@@ -516,8 +516,8 @@ if ($action === 'getMailBody') {
     $apiBase = 'https://www.worksapis.com/v1.0/users/me';
     
     list($code, $detail) = worksApiGet("{$apiBase}/mail/{$mailId}", $accessToken);
-    if ($code === 200 && isset($detail['body'])) {
-        echo json_encode(["success" => true, "body" => $detail['body']]);
+    if ($code === 200 && isset($detail['mail']['body'])) {
+        echo json_encode(["success" => true, "body" => $detail['mail']['body']]);
     } else {
         $extra = ($code === 200) ? " (응답구조: " . json_encode($detail, JSON_UNESCAPED_UNICODE) . ")" : "";
         echo json_encode(["success" => false, "message" => "본문 조회 실패 (HTTP {$code}){$extra}"]);
