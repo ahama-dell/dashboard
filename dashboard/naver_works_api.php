@@ -457,6 +457,7 @@ function getNaverWorksSummary($accessToken) {
             $bodyContent = '';
 
             $mails[] = [
+                "mailId" => isset($m['mailId']) ? $m['mailId'] : '',
                 "subject" => isset($m['subject']) && $m['subject'] !== '' ? $m['subject'] : '(제목 없음)',
                 "senderName" => isset($m['from']['name']) && $m['from']['name'] !== '' ? $m['from']['name'] : (isset($m['from']['email']) ? $m['from']['email'] : '알 수 없음'),
                 "senderEmail" => isset($m['from']['email']) ? $m['from']['email'] : '',
@@ -470,13 +471,33 @@ function getNaverWorksSummary($accessToken) {
 
     }
 
+    // (목록 조회 시에는 본문을 가져오지 않음 - 속도 최적화)
+
     return [
         "success" => true,
         "isMockMode" => false,
         "unreadMailCount" => $unreadCount,
         "mails" => $mails,
-        "notifications" => getSystemNotificationsLocal() // 로컬 서버 시스템 경보 로그 반환
+        "notifications" => getSystemNotificationsLocal()
     ];
+}
+
+// 1-2. 단일 메일 본문 가져오기 (Lazy Loading)
+if ($action === 'getMailBody') {
+    if (!isset($_GET['mailId']) || empty($_GET['mailId'])) {
+        echo json_encode(["success" => false, "message" => "mailId가 없습니다."]);
+        exit;
+    }
+    $mailId = $_GET['mailId'];
+    $apiBase = 'https://www.worksapis.com/v1.0/users/me';
+    
+    list($code, $detail) = worksApiGet("{$apiBase}/mail/{$mailId}", $accessToken);
+    if ($code === 200 && isset($detail['body'])) {
+        echo json_encode(["success" => true, "body" => $detail['body']]);
+    } else {
+        echo json_encode(["success" => false, "message" => "본문 조회 실패 (HTTP {$code})"]);
+    }
+    exit;
 }
 
 // 2. 메시지 봇을 통한 메시지 전송

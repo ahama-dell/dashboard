@@ -247,7 +247,7 @@
     if (data.mails && data.mails.length > 0) {
       mails = data.mails;
       mailList.innerHTML = data.mails.map((m, idx) => `
-        <li class="${m.isUnread ? 'unread' : ''}" onclick="window.open('${esc(m.link)}')">
+        <li class="${m.isUnread ? 'unread' : ''}" onclick="openDetail(${idx})">
           <div class="mail-item-left">
             <span class="mail-subject">${esc(m.subject)}</span>
             <span class="mail-sender">${esc(m.senderName)}${m.senderEmail ? ' (' + esc(m.senderEmail) + ')' : ''}</span>
@@ -260,17 +260,31 @@
   }
 
   // ── 상세보기 모달 ─────────────────────────────
-  function openDetail(idx) {
+  async function openDetail(idx) {
     const m = mails[idx]; if (!m) return;
     document.getElementById('detailTitle').textContent = m.subject || '(제목 없음)';
     document.getElementById('detailMeta').textContent =
       `보낸사람: ${m.senderName || ''}${m.senderEmail ? ' <' + m.senderEmail + '>' : ''} · ${m.receivedTime || ''}`;
     const iframe = document.getElementById('detailIframe');
     if (iframe) {
-      iframe.srcdoc = m.body || '<div style="padding:20px; font-family:sans-serif; color:#666;">(본문 내용이 없는 메일입니다.)</div>';
+      iframe.srcdoc = '<div style="padding:20px; font-family:sans-serif; color:#666;">본문을 불러오는 중입니다... ⏳</div>';
     }
     document.getElementById('detailLink').href = m.link || 'https://mail.worksmobile.com/';
     document.getElementById('detailModal').classList.add('show');
+
+    if (m.mailId) {
+      try {
+        const res = await fetch('naver_works_api.php?action=getMailBody&mailId=' + encodeURIComponent(m.mailId));
+        const json = await res.json();
+        if (json.success && json.body && iframe) {
+           iframe.srcdoc = json.body;
+        } else if (iframe) {
+           iframe.srcdoc = '<div style="padding:20px; font-family:sans-serif; color:#e74c3c;">(본문을 불러오지 못했습니다: ' + (json.message || '내용 없음') + ')</div>';
+        }
+      } catch(e) {
+        if(iframe) iframe.srcdoc = '<div style="padding:20px; font-family:sans-serif; color:#e74c3c;">(통신 오류로 본문을 불러오지 못했습니다)</div>';
+      }
+    }
   }
   function closeDetail() { document.getElementById('detailModal').classList.remove('show'); }
 
