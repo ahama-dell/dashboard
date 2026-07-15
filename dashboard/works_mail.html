@@ -136,7 +136,9 @@
         <button class="modal-close" onclick="closeDetail()">✕</button>
       </div>
       <div class="detail-meta" id="detailMeta"></div>
-      <div class="detail-body" id="detailBody"></div>
+      <div class="detail-body" id="detailBody" style="padding:0; overflow:hidden;">
+        <iframe id="detailIframe" style="width:100%; height:100%; border:none; background:#fff;"></iframe>
+      </div>
       <div class="detail-actions">
         <button class="btn-ghost" onclick="closeDetail()">닫기</button>
         <a class="btn-primary" id="detailLink" href="https://mail.worksmobile.com/" target="_blank" rel="noopener">네이버웍스에서 열기 ↗</a>
@@ -263,8 +265,10 @@
     document.getElementById('detailTitle').textContent = m.subject || '(제목 없음)';
     document.getElementById('detailMeta').textContent =
       `보낸사람: ${m.senderName || ''}${m.senderEmail ? ' <' + m.senderEmail + '>' : ''} · ${m.receivedTime || ''}`;
-    document.getElementById('detailBody').textContent =
-      m.body || '(본문 미리보기가 제공되지 않는 메일입니다. 네이버웍스에서 확인해 주세요.)';
+    const iframe = document.getElementById('detailIframe');
+    if (iframe) {
+      iframe.srcdoc = m.body || '<div style="padding:20px; font-family:sans-serif; color:#666;">(본문 내용이 없는 메일입니다.)</div>';
+    }
     document.getElementById('detailLink').href = m.link || 'https://mail.worksmobile.com/';
     document.getElementById('detailModal').classList.add('show');
   }

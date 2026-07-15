@@ -493,11 +493,7 @@ function getNaverWorksSummary($accessToken) {
             $bodyContent = '';
 
             if (!empty($bodyResponses[$idx])) {
-                $plain = html_entity_decode(strip_tags($bodyResponses[$idx]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-                $plain = preg_replace('/[ \t]+/u', ' ', $plain);
-                $plain = preg_replace('/\n{3,}/u', "\n\n", str_replace("\r", '', $plain));
-                $plain = trim($plain);
-                $bodyContent = function_exists('mb_substr') ? mb_substr($plain, 0, 1000, 'UTF-8') : substr($plain, 0, 3000);
+                $bodyContent = $bodyResponses[$idx]; // HTML 원본 그대로 전달
             }
 
             $mails[] = [
