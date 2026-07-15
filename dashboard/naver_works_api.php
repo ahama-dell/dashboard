@@ -489,6 +489,30 @@ if ($action === 'getMailBody') {
         exit;
     }
     $mailId = $_GET['mailId'];
+    
+    // HTTP Authorization 헤더 확인 (인증 토큰 추출)
+    $accessToken = '';
+    $authHeader = '';
+    if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
+    } elseif (function_exists('apache_request_headers')) {
+        $requestHeaders = apache_request_headers();
+        if (isset($requestHeaders['Authorization'])) {
+            $authHeader = $requestHeaders['Authorization'];
+        }
+    }
+    
+    if (!empty($authHeader) && preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+        $accessToken = $matches[1];
+    } elseif (isset($_GET['access_token'])) {
+        $accessToken = $_GET['access_token'];
+    }
+    
+    if (empty($accessToken)) {
+        echo json_encode(["success" => false, "message" => "인증 토큰(access_token)이 없습니다."]);
+        exit;
+    }
+
     $apiBase = 'https://www.worksapis.com/v1.0/users/me';
     
     list($code, $detail) = worksApiGet("{$apiBase}/mail/{$mailId}", $accessToken);
