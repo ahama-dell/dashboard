@@ -448,52 +448,16 @@ function getNaverWorksSummary($accessToken) {
 
     $mails = [];
     if (isset($listData['mails']) && is_array($listData['mails'])) {
-        // 3) 본문 미리보기 병렬 통신 (curl_multi_init 사용) - 속도 혁신
-        $multiHandle = curl_multi_init();
-        $curlHandles = [];
-        foreach ($listData['mails'] as $idx => $m) {
-            if (isset($m['mailId'])) {
-                $ch = curl_init("{$apiBase}/mail/{$m['mailId']}");
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer {$accessToken}"]);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-                curl_multi_add_handle($multiHandle, $ch);
-                $curlHandles[$idx] = $ch;
-            }
-        }
-
-        // 병렬 실행
-        $active = null;
-        do { $mrc = curl_multi_exec($multiHandle, $active); } while ($mrc == CURLM_CALL_MULTI_PERFORM);
-        while ($active && $mrc == CURLM_OK) {
-            if (curl_multi_select($multiHandle) != -1) {
-                do { $mrc = curl_multi_exec($multiHandle, $active); } while ($mrc == CURLM_CALL_MULTI_PERFORM);
-            }
-        }
-
-        // 결과 수집
-        $bodyResponses = [];
-        foreach ($curlHandles as $idx => $ch) {
-            $response = curl_multi_getcontent($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            if ($httpCode === 200 && $response) {
-                $detail = json_decode($response, true);
-                $bodyResponses[$idx] = isset($detail['body']) ? $detail['body'] : '';
-            } else {
-                $bodyResponses[$idx] = '';
-            }
-            curl_multi_remove_handle($multiHandle, $ch);
-            curl_close($ch);
-        }
-        curl_multi_close($multiHandle);
-
-        // 4) 최종 데이터 조립
         foreach ($listData['mails'] as $idx => $m) {
             $isUnread = (isset($m['status']) && $m['status'] === 'Unread');
             $bodyContent = '';
 
-            if (!empty($bodyResponses[$idx])) {
-                $bodyContent = $bodyResponses[$idx]; // HTML 원본 그대로 전달
+            // 3) 본문 안전하게 개별 조회 (HTML 원본 유지)
+            if (isset($m['mailId'])) {
+                list($codeMail, $mailDetail) = worksApiGet("{$apiBase}/mail/{$m['mailId']}", $accessToken);
+                if ($codeMail === 200 && !empty($mailDetail['body'])) {
+                    $bodyContent = $mailDetail['body'];
+                }
             }
 
             $mails[] = [
@@ -506,6 +470,8 @@ function getNaverWorksSummary($accessToken) {
                 "link" => "https://mail.worksmobile.com/" // 기본 메일함 이동 링크
             ];
         }
+
+
     }
 
     return [
