@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ============================================================
  *  auth-guard.js — 페이지 접근 제한 스크립트
  * ============================================================
@@ -14,7 +14,7 @@
 (function() {
   'use strict';
 
-  const session = sessionStorage.getItem('lw_session');
+  const session = localStorage.getItem('lw_session');
 
   if (!session) {
     // 세션 없음 → 로그인 페이지로
@@ -27,7 +27,7 @@
 
     // 세션 만료 확인
     if (Date.now() > data.expiresAt) {
-      sessionStorage.removeItem('lw_session');
+      localStorage.removeItem('lw_session');
       window.location.replace('index.html');
       return;
     }
@@ -41,14 +41,14 @@
     };
 
     // ── 메일 위젯(works_mail.html iframe)과 토큰 동기화 ──
-    // sessionStorage에 토큰이 있으나 localStorage에 없는 경우 복원
+    // localStorage에 토큰이 있으나 localStorage에 없는 경우 복원
     if (data.accessToken && !localStorage.getItem('naver_works_access_token')) {
       localStorage.setItem('naver_works_access_token', data.accessToken);
       localStorage.setItem('naver_works_token_expires', String(data.expiresAt));
     }
 
   } catch (e) {
-    sessionStorage.removeItem('lw_session');
+    localStorage.removeItem('lw_session');
     window.location.replace('index.html');
   }
 })();
