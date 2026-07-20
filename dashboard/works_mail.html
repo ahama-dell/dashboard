@@ -276,7 +276,7 @@
     const loginUrl = 'https://auth.worksmobile.com/oauth2/v2.0/authorize'
       + '?client_id=' + encodeURIComponent(clientId)
       + '&redirect_uri=' + encodeURIComponent(redirectUri)
-      + '&scope=' + encodeURIComponent('mail.read board board.read')
+      + '&scope=' + encodeURIComponent('mail.read board.read')
       + '&response_type=code&state=works_mail_module';
 
     const popup = window.open(loginUrl, 'worksLogin', 'width=480,height=640,menubar=no,toolbar=no');
