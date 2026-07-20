@@ -329,7 +329,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   if (code && state) {
     // state 검증
-    const savedState = sessionStorage.getItem('lw_oauth_state');
+    const savedState = localStorage.getItem('lw_oauth_state');
     if (state !== savedState) {
       showError('보안 검증에 실패했습니다. 다시 시도해 주세요.');
       return;
@@ -350,7 +350,7 @@ function startLogin() {
 
   // CSRF 방지용 state 생성
   const state = generateState();
-  sessionStorage.setItem('lw_oauth_state', state);
+  localStorage.setItem('lw_oauth_state', state);
 
   // LINE WORKS 인증 페이지로 이동
   const authUrl = AUTH_CONFIG.AUTH_URL
@@ -436,7 +436,7 @@ async function handleCallback(code) {
       loginAt:     Date.now(),
       expiresAt:   Date.now() + AUTH_CONFIG.SESSION_TTL,
     };
-    sessionStorage.setItem('lw_session', JSON.stringify(session));
+    localStorage.setItem('lw_session', JSON.stringify(session));
 
     // ── 메일 위젯(works_mail.html)과 토큰 공유 ──
     // 포털 로그인 scope에 mail.read가 포함되어 있으므로
@@ -464,18 +464,18 @@ async function handleCallback(code) {
 
 // ── 세션 확인 ──
 function checkSession() {
-  const raw = sessionStorage.getItem('lw_session');
+  const raw = localStorage.getItem('lw_session');
   if (!raw) return;
 
   try {
     const session = JSON.parse(raw);
     if (Date.now() > session.expiresAt) {
-      sessionStorage.removeItem('lw_session');
+      localStorage.removeItem('lw_session');
       return;
     }
     showLoggedIn(session);
   } catch {
-    sessionStorage.removeItem('lw_session');
+    localStorage.removeItem('lw_session');
   }
 }
 
@@ -499,8 +499,8 @@ function showLoggedIn(session) {
 
 // ── 로그아웃 ──
 function doLogout() {
-  sessionStorage.removeItem('lw_session');
-  sessionStorage.removeItem('lw_oauth_state');
+  localStorage.removeItem('lw_session');
+  localStorage.removeItem('lw_oauth_state');
   // 메일 위젯 공유 토큰도 함께 정리
   localStorage.removeItem('naver_works_access_token');
   localStorage.removeItem('naver_works_refresh_token');
