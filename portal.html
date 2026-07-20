@@ -733,7 +733,11 @@
       Object.keys(state.layout).forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
-        const L = state.layout[id];
+        let L = state.layout[id];
+        if (!L || typeof L.x !== 'number' || typeof L.y !== 'number' || typeof L.w !== 'number' || typeof L.h !== 'number') {
+            L = DEFAULT_LAYOUT[id];
+            if (!L) return;
+        }
         el.style.left   = Math.round(L.x * boardW) + 'px';
         el.style.top    = Math.round(L.y * boardH) + 'px';
         el.style.width  = Math.round(L.w * boardW) + 'px';
@@ -962,9 +966,7 @@
     };
 
     const BLOCK_DEFAULTS = {
-      block1: { title: '콘텐츠 영역 1', ico: '📋', hint: '추가 콘텐츠가 이곳에 배치됩니다' },
-      block2: { title: '콘텐츠 영역 2', ico: '📋', hint: '추가 콘텐츠가 이곳에 배치됩니다' },
-      summary: { title: '현황 요약', ico: '📊', hint: '요약 통계가 이곳에 배치됩니다' }
+      block2: { title: '콘텐츠 영역 2', ico: '📋', hint: '추가 콘텐츠가 이곳에 배치됩니다' }
     };
 
     const ICON_BG = ['#ede9fe', '#fce7f3', '#fef3c7', '#e0f2fe', '#dcfce7', '#ffedd5'];
@@ -1649,7 +1651,10 @@
 
       // DEFAULT_LAYOUT의 모든 키가 있는지 확인 후 누락된 것만 채워 넣기
       Object.keys(DEFAULT_LAYOUT).forEach(key => {
-        if (!state.layout[key]) state.layout[key] = Object.assign({}, DEFAULT_LAYOUT[key]);
+        const L = state.layout[key];
+        if (!L || typeof L.x !== 'number' || typeof L.y !== 'number' || typeof L.w !== 'number' || typeof L.h !== 'number') {
+          state.layout[key] = Object.assign({}, DEFAULT_LAYOUT[key]);
+        }
       });
 
       document.getElementById('portalTitle').textContent = state.portalTitle;
