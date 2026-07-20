@@ -239,7 +239,7 @@
       if (Date.now() > expiresAt - 300000) {
         if (!refreshToken || refreshToken.startsWith('mock_')) return accessToken;
         try {
-          const res = await fetch(API + '?action=refresh&refresh_token=' + encodeURIComponent(refreshToken));
+          const res = await fetch(API + '?action=refresh_token&refresh_token=' + encodeURIComponent(refreshToken));
           const data = await res.json();
           if (data.success && data.access_token) {
             localStorage.setItem(TOKEN_KEY, data.access_token);
