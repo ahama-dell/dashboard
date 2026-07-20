@@ -109,9 +109,7 @@
   }
 
   function clearTokens() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_KEY);
-    localStorage.removeItem(EXPIRES_KEY);
+    // 서버 토큰 방식이므로 클라이언트에서는 아무것도 하지 않음
   }
 
   async function fetchData() {
@@ -120,19 +118,14 @@
       if (!cfgRes.ok) throw new Error('Config load failed');
       const config = await cfgRes.json();
 
-      const accessToken = await checkAndRefreshToken();
-      if (!accessToken) { showLoginForm(config.client_id, config.isMockMode); return; }
-
       const res = await fetch(API + '?action=getBoardNotices', {
-        cache: 'no-cache',
-        headers: { 'Authorization': 'Bearer ' + accessToken }
+        cache: 'no-cache'
       });
       if (!res.ok) throw new Error('API request failed');
       const data = await res.json();
 
       if (!data.success) {
-        if (data.message && data.message.includes('인증 토큰')) {
-            clearTokens();
+        if (data.message === 'unconfigured' || data.message.includes('전달되지 않았습니다')) {
             showLoginForm(config.client_id, config.isMockMode);
         } else {
             document.getElementById('listScroll').innerHTML = `<div class="list-placeholder">${esc(data.message)}</div>`;
@@ -199,12 +192,7 @@
   // 로그인 팝업
   function doLogin(clientId, isMockMode) {
     if (isMockMode) {
-      const now = Date.now();
-      localStorage.setItem(TOKEN_KEY, 'mock_access_token_' + now);
-      localStorage.setItem(REFRESH_KEY, 'mock_refresh_token_' + now);
-      localStorage.setItem(EXPIRES_KEY, String(now + 86400 * 1000));
-      showToast('✓ 테스트 로그인이 완료되었습니다.');
-      fetchData();
+      showToast('✓ 테스트 로그인은 현재 지원되지 않습니다.');
       return;
     }
     const redirectUri = window.location.origin + window.location.pathname.replace('works_board.html', 'works_mail.html'); 
@@ -228,40 +216,11 @@
     setTimeout(fetchData, 500);
   }
 
-  async function checkAndRefreshToken() {
-    const accessToken = localStorage.getItem(TOKEN_KEY);
-    const refreshToken = localStorage.getItem(REFRESH_KEY);
-    const expiresStr = localStorage.getItem(EXPIRES_KEY);
-    if (!accessToken) return null;
-    
-    if (expiresStr) {
-      const expiresAt = parseInt(expiresStr, 10);
-      if (Date.now() > expiresAt - 300000) {
-        if (!refreshToken || refreshToken.startsWith('mock_')) return accessToken;
-        try {
-          const res = await fetch(API + '?action=refresh_token&refresh_token=' + encodeURIComponent(refreshToken));
-          const data = await res.json();
-          if (data.success && data.access_token) {
-            localStorage.setItem(TOKEN_KEY, data.access_token);
-            if (data.refresh_token) localStorage.setItem(REFRESH_KEY, data.refresh_token);
-            if (data.expires_in) localStorage.setItem(EXPIRES_KEY, String(Date.now() + (data.expires_in * 1000)));
-            return data.access_token;
-          }
-        } catch (e) { console.error('토큰 갱신 실패:', e); }
-      }
-    }
-    return accessToken;
-  }
-
   window.addEventListener('message', function(e) {
     if (e.data && e.data.type === 'worksLoginSuccess') {
       showToast('로그인 연동이 성공했습니다.');
       fetchData();
     }
-  });
-
-  window.addEventListener('storage', function(e) {
-      if (e.key === TOKEN_KEY) fetchData();
   });
 
   document.addEventListener("DOMContentLoaded", fetchData);

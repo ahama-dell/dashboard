@@ -129,6 +129,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             ]);
         } else {
             $tokenData = json_decode($response, true);
+            
+            // 파일에 토큰 저장
+            if (!empty($tokenData['access_token'])) {
+                $expiresIn = isset($tokenData['expires_in']) ? (int)$tokenData['expires_in'] : 3600;
+                $saveData = [
+                    'access_token' => $tokenData['access_token'],
+                    'refresh_token' => isset($tokenData['refresh_token']) ? $tokenData['refresh_token'] : '',
+                    'expires_at' => time() + $expiresIn
+                ];
+                file_put_contents(__DIR__ . '/works_token.json', json_encode($saveData, JSON_PRETTY_PRINT));
+            }
+
             $tokenData['success'] = true;
             echo json_encode($tokenData);
         }
@@ -271,30 +283,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             ob_end_flush();
             exit;
         } else {
-            // 헤더 또는 쿼리 파라미터에서 access_token 추출
-            $accessToken = '';
-            
-            // HTTP Authorization 헤더 확인
-            $authHeader = '';
-            if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
-                $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
-            } elseif (function_exists('apache_request_headers')) {
-                $requestHeaders = apache_request_headers();
-                if (isset($requestHeaders['Authorization'])) {
-                    $authHeader = $requestHeaders['Authorization'];
-                }
-            }
-            
-            if (!empty($authHeader) && preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-                $accessToken = $matches[1];
-            } elseif (isset($_GET['access_token'])) {
-                $accessToken = $_GET['access_token'];
-            }
+            // 서버 토큰 확인
+            $accessToken = getNaverWorksAccessToken();
             
             if (empty($accessToken)) {
                 echo json_encode([
                     "success" => false, 
-                    "message" => "인증 토큰(access_token)이 전달되지 않았습니다."
+                    "message" => "unconfigured"
                 ]);
                 ob_end_flush();
                 exit;
@@ -493,26 +488,11 @@ if ($action === 'getMailBody') {
     }
     $mailId = $_GET['mailId'];
     
-    // HTTP Authorization 헤더 확인 (인증 토큰 추출)
-    $accessToken = '';
-    $authHeader = '';
-    if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
-        $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
-    } elseif (function_exists('apache_request_headers')) {
-        $requestHeaders = apache_request_headers();
-        if (isset($requestHeaders['Authorization'])) {
-            $authHeader = $requestHeaders['Authorization'];
-        }
-    }
-    
-    if (!empty($authHeader) && preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-        $accessToken = $matches[1];
-    } elseif (isset($_GET['access_token'])) {
-        $accessToken = $_GET['access_token'];
-    }
+    // 서버 토큰 확인
+    $accessToken = getNaverWorksAccessToken();
     
     if (empty($accessToken)) {
-        echo json_encode(["success" => false, "message" => "인증 토큰(access_token)이 없습니다."]);
+        echo json_encode(["success" => false, "message" => "unconfigured"]);
         exit;
     }
 
@@ -561,23 +541,11 @@ if ($action === 'getBoardNotices') {
         exit;
     }
 
-    $accessToken = '';
-    $authHeader = '';
-    if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
-        $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
-    } elseif (function_exists('apache_request_headers')) {
-        $requestHeaders = apache_request_headers();
-        if (isset($requestHeaders['Authorization'])) {
-            $authHeader = $requestHeaders['Authorization'];
-        }
-    }
-    if (!empty($authHeader) && preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-        $accessToken = $matches[1];
-    } elseif (isset($_GET['access_token'])) {
-        $accessToken = $_GET['access_token'];
-    }
+    // 서버 토큰 확인
+    $accessToken = getNaverWorksAccessToken();
+    
     if (empty($accessToken)) {
-        echo json_encode(["success" => false, "message" => "인증 토큰(access_token)이 없습니다."]);
+        echo json_encode(["success" => false, "message" => "unconfigured"]);
         exit;
     }
 
@@ -656,9 +624,55 @@ function sendNaverWorksBotMessage($botId, $channelId, $message) {
     }
 }
 
-// 3. JWT를 이용한 Access Token 획득 로직
 function getNaverWorksAccessToken() {
-    return null; // 실제 연동 전에는 연동 설정이 되지 않았으므로 null 반환
+    $tokenFile = __DIR__ . '/works_token.json';
+    if (!file_exists($tokenFile)) {
+        return null;
+    }
+    $tokenData = json_decode(file_get_contents($tokenFile), true);
+    if (!$tokenData || empty($tokenData['access_token'])) {
+        return null;
+    }
+
+    // 만료 5분(300초) 전이면 토큰 갱신 시도
+    if (isset($tokenData['expires_at']) && time() > ($tokenData['expires_at'] - 300)) {
+        if (empty($tokenData['refresh_token'])) {
+            return null; // 갱신 불가
+        }
+        $ch = curl_init('https://auth.worksmobile.com/oauth2/v2.0/token');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+            'grant_type' => 'refresh_token',
+            'refresh_token' => $tokenData['refresh_token'],
+            'client_id' => WORKS_CLIENT_ID,
+            'client_secret' => WORKS_CLIENT_SECRET
+        ]));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/x-www-form-urlencoded'
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200) {
+            $newData = json_decode($response, true);
+            if (!empty($newData['access_token'])) {
+                $tokenData['access_token'] = $newData['access_token'];
+                if (!empty($newData['refresh_token'])) {
+                    $tokenData['refresh_token'] = $newData['refresh_token'];
+                }
+                $expiresIn = isset($newData['expires_in']) ? (int)$newData['expires_in'] : 3600;
+                $tokenData['expires_at'] = time() + $expiresIn;
+                file_put_contents($tokenFile, json_encode($tokenData, JSON_PRETTY_PRINT));
+                return $tokenData['access_token'];
+            }
+        }
+        // 갱신 실패 시에도 일단 기존 토큰 반환 시도 (완전 만료 전일 수 있으므로)
+        return $tokenData['access_token'];
+    }
+
+    return $tokenData['access_token'];
 }
 
 // 4. 로컬 서버의 임시 모니터링 로그 반환

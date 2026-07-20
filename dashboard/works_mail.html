@@ -152,9 +152,7 @@
   }
 
   function clearTokens() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_KEY);
-    localStorage.removeItem(EXPIRES_KEY);
+    // 서버 토큰 방식이므로 클라이언트에서는 아무것도 하지 않음 (로그아웃은 추후 API 연동 필요)
   }
 
   // 부모(포털)에게 안읽은 메일 수 전달 → 패널 헤더 배지 갱신
@@ -173,20 +171,18 @@
       if (!cfgRes.ok) throw new Error('Config load failed');
       const config = await cfgRes.json();
 
-      const accessToken = await checkAndRefreshToken();
-      if (!accessToken) { showLoginForm(config.client_id, config.isMockMode); return; }
-
       const res = await fetch(API + '?action=summary', {
-        cache: 'no-cache',
-        headers: { 'Authorization': 'Bearer ' + accessToken }
+        cache: 'no-cache'
       });
       if (!res.ok) throw new Error('Summary request failed');
       const data = await res.json();
 
       if (!data.success) {
-        clearTokens();
-        showLoginForm(config.client_id, config.isMockMode);
-        if (data.message) showToast('⚠ ' + data.message);
+        if (data.message === 'unconfigured' || data.message.includes('전달되지 않았습니다')) {
+            showLoginForm(config.client_id, config.isMockMode);
+        } else {
+            showToast('⚠ ' + data.message);
+        }
         postUnreadCount(0);
         return;
       }
@@ -260,15 +256,10 @@
     window.open(url, 'MailViewer_' + m.mailId, `width=${w},height=${h},top=${top},left=${left},scrollbars=yes,resizable=yes`);
   }
 
-  // ── OAuth 로그인 (팝업 방식: 네이버웍스 로그인 화면은 iframe 내부에서 열 수 없음) ──
+  // ── OAuth 로그인 (팝업 방식) ──
   function doLogin(clientId, isMockMode) {
     if (isMockMode) {
-      const now = Date.now();
-      localStorage.setItem(TOKEN_KEY, 'mock_access_token_' + now);
-      localStorage.setItem(REFRESH_KEY, 'mock_refresh_token_' + now);
-      localStorage.setItem(EXPIRES_KEY, String(now + 86400 * 1000));
-      showToast('✓ 테스트 로그인이 완료되었습니다.');
-      fetchData();
+      showToast('✓ 테스트 로그인은 현재 지원되지 않습니다.');
       return;
     }
     // Redirect URL: 이 모듈 파일 자신 (Developer Console에 등록 필요)
@@ -294,33 +285,8 @@
     fetchData();
   }
 
-  // ── 토큰 만료 확인 및 자동 갱신 ─────────────────────────────
-  async function checkAndRefreshToken() {
-    const accessToken = localStorage.getItem(TOKEN_KEY);
-    const refreshToken = localStorage.getItem(REFRESH_KEY);
-    const expiresStr = localStorage.getItem(EXPIRES_KEY);
-    if (!accessToken || !expiresStr) return null;
-
-    // 만료 5분 전부터 갱신 시도
-    if (parseInt(expiresStr, 10) - Date.now() < 300 * 1000) {
-      if (!refreshToken) { clearTokens(); return null; }
-      try {
-        const res = await fetch(API + '?action=refresh_token&refresh_token=' + encodeURIComponent(refreshToken));
-        if (!res.ok) throw new Error('refresh failed');
-        const data = await res.json();
-        if (data.success && data.access_token) {
-          localStorage.setItem(TOKEN_KEY, data.access_token);
-          localStorage.setItem(EXPIRES_KEY, String(Date.now() + (data.expires_in || 3600) * 1000));
-          return data.access_token;
-        }
-        clearTokens();
-        return null;
-      } catch (e) {
-        return accessToken; // 갱신 실패 시 기존 토큰으로 일단 시도
-      }
-    }
-    return accessToken;
-  }
+  // ── 토큰 만료 확인 및 자동 갱신 삭제 ─────────────────────────────
+  // (서버 자동 갱신으로 이관됨)
 
   // ── OAuth 콜백 처리 (팝업 또는 최상위 창으로 ?code= 도착) ─────────────
   async function handleOAuthCallback() {
@@ -329,38 +295,28 @@
     if (!code) return false;
 
     try {
-      const cfgRes = await fetch(API + '?action=config', { cache: 'no-cache' });
-      if (!cfgRes.ok) throw new Error('Config load failed');
-      const config = await cfgRes.json();
-
-      if (config.isMockMode) {
-        const now = Date.now();
-        localStorage.setItem(TOKEN_KEY, 'mock_access_token_' + now);
-        localStorage.setItem(REFRESH_KEY, 'mock_refresh_token_' + now);
-        localStorage.setItem(EXPIRES_KEY, String(now + 86400 * 1000));
+      const redirectUri = window.location.origin + window.location.pathname;
+      const res = await fetch(API + '?action=get_token&code=' + encodeURIComponent(code) + '&redirect_uri=' + encodeURIComponent(redirectUri));
+      if (!res.ok) throw new Error('Token exchange failed');
+      const data = await res.json();
+      
+      if (data.success) {
+          if (window.opener && window.opener !== window) {
+              window.opener.postMessage({ type: 'worksLoginSuccess' }, '*');
+          }
       } else {
-        const redirectUri = window.location.origin + window.location.pathname;
-        const res = await fetch(API + '?action=get_token&code=' + encodeURIComponent(code) + '&redirect_uri=' + encodeURIComponent(redirectUri));
-        if (!res.ok) throw new Error('Token exchange failed');
-        const data = await res.json();
-        if (data.success && data.access_token) {
-          localStorage.setItem(TOKEN_KEY, data.access_token);
-          if (data.refresh_token) localStorage.setItem(REFRESH_KEY, data.refresh_token);
-          localStorage.setItem(EXPIRES_KEY, String(Date.now() + (data.expires_in || 3600) * 1000));
-        } else {
           alert('인증 토큰 획득 실패: ' + (data.message || '알 수 없는 오류'));
-        }
       }
     } catch (e) {
       alert('서버 통신 장애로 인증 처리를 완료하지 못했습니다.');
     }
 
-    // 팝업으로 열린 경우: 창을 닫으면 원래 화면(iframe)이 storage 이벤트로 자동 갱신됨
+    // 팝업으로 열린 경우 닫기
     if (window.opener && window.opener !== window) {
       window.close();
       return true;
     }
-    // 최상위 창으로 열린 경우: code 파라미터 제거 후 새로고침
+    // 최상위 창으로 열린 경우 새로고침
     urlParams.delete('code');
     urlParams.delete('state');
     urlParams.delete('error');
@@ -377,9 +333,12 @@
     fetchData();
     setInterval(fetchData, 5 * 60 * 1000);
 
-    // 팝업 로그인 완료 시 localStorage 변경 감지 → 목록 자동 갱신
-    window.addEventListener('storage', e => {
-      if (e.key === TOKEN_KEY) fetchData();
+    // 팝업 로그인 완료 메시지 수신 시 새로고침
+    window.addEventListener('message', e => {
+      if (e.data && e.data.type === 'worksLoginSuccess') {
+          showToast('네이버웍스 연동이 완료되었습니다.');
+          fetchData();
+      }
     });
   })();
 </script>
