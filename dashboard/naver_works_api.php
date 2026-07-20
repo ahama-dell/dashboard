@@ -580,7 +580,7 @@ if ($action === 'getBoardNotices') {
             "title" => isset($p['title']) ? $p['title'] : '(제목 없음)',
             "author" => isset($p['writer']['name']) ? $p['writer']['name'] : '알 수 없음',
             "createdTime" => isset($p['createdTime']) ? formatWorksMailTime($p['createdTime']) : '',
-            "link" => "https://board.worksmobile.com/article/{$targetBoardId}/{$p['postId']}"
+            "link" => "https://board.worksmobile.com/main/article/{$p['postId']}?boardNo={$targetBoardId}"
         ];
     }
 
