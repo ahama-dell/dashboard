@@ -458,13 +458,16 @@ function getNaverWorksSummary($accessToken) {
 
             $mails[] = [
                 "mailId" => isset($m['mailId']) ? $m['mailId'] : '',
+                "folderId" => isset($m['folderId']) ? $m['folderId'] : '0',
                 "subject" => isset($m['subject']) && $m['subject'] !== '' ? $m['subject'] : '(제목 없음)',
                 "senderName" => isset($m['from']['name']) && $m['from']['name'] !== '' ? $m['from']['name'] : (isset($m['from']['email']) ? $m['from']['email'] : '알 수 없음'),
                 "senderEmail" => isset($m['from']['email']) ? $m['from']['email'] : '',
                 "receivedTime" => isset($m['receivedTime']) ? formatWorksMailTime($m['receivedTime']) : '',
                 "isUnread" => $isUnread,
                 "body" => $bodyContent,
-                "link" => "https://mail.worksmobile.com/" // 기본 메일함 이동 링크
+                "link" => (isset($m['folderId']) && isset($m['mailId'])) 
+                            ? "https://mail.worksmobile.com/#/read/{$m['folderId']}/{$m['mailId']}" 
+                            : "https://mail.worksmobile.com/"
             ];
         }
 

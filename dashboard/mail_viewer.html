@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>메일 뷰어 (대화면)</title>
+  <style>
+    body {
+      margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #f0f4f4; display: flex; flex-direction: column; height: 100vh;
+    }
+    .header {
+      background: #fff; padding: 16px 24px; border-bottom: 1px solid #e1e8e8;
+      display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .header h1 { margin: 0; font-size: 1.2rem; color: #12343a; font-weight: 700; }
+    .close-btn {
+      padding: 8px 16px; background: #fff; border: 1px solid #d6e2e2; border-radius: 6px;
+      cursor: pointer; font-weight: 600; color: #4a5568;
+    }
+    .close-btn:hover { background: #f8fafa; }
+    .content-wrapper {
+      flex: 1; padding: 24px; overflow: hidden; display: flex; justify-content: center;
+    }
+    .mail-container {
+      background: #fff; width: 100%; max-width: 1200px; height: 100%; border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #e1e8e8; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    #mailIframe {
+      width: 100%; height: 100%; border: none; background: #fff;
+    }
+    .loading {
+      padding: 40px; text-align: center; color: #666; font-size: 1.1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 id="mailSubject">메일 읽기</h1>
+    <button class="close-btn" onclick="window.close()">창 닫기</button>
+  </div>
+  <div class="content-wrapper">
+    <div class="mail-container">
+      <div id="loading" class="loading">본문을 불러오는 중입니다... ⏳</div>
+      <iframe id="mailIframe" style="display:none;"></iframe>
+    </div>
+  </div>
+
+  <script>
+    const TOKEN_KEY = 'works_access_token';
+    const params = new URLSearchParams(window.location.search);
+    const mailId = params.get('mailId');
+    const subject = params.get('subject');
+    
+    if (subject) document.getElementById('mailSubject').textContent = subject;
+
+    async function loadMail() {
+      if (!mailId) {
+        document.getElementById('loading').innerHTML = '<span style="color:red;">메일 ID가 지정되지 않았습니다.</span>';
+        return;
+      }
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (!token) {
+        document.getElementById('loading').innerHTML = '<span style="color:red;">로그인 토큰이 없습니다. 대시보드에서 다시 열어주세요.</span>';
+        return;
+      }
+
+      try {
+        const res = await fetch('naver_works_api.php?action=getMailBody&mailId=' + encodeURIComponent(mailId), {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const json = await res.json();
+        const loading = document.getElementById('loading');
+        const iframe = document.getElementById('mailIframe');
+
+        if (json.success && json.body) {
+          loading.style.display = 'none';
+          iframe.style.display = 'block';
+          iframe.srcdoc = json.body;
+        } else {
+          loading.innerHTML = '<span style="color:red;">본문을 불러오지 못했습니다: ' + (json.message || '내용 없음') + '</span>';
+        }
+      } catch (e) {
+        document.getElementById('loading').innerHTML = '<span style="color:red;">통신 오류로 본문을 불러오지 못했습니다.</span>';
+      }
+    }
+
+    loadMail();
+  </script>
+</body>
+</html>
