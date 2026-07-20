@@ -141,8 +141,7 @@
       </div>
       <div class="detail-actions">
         <button class="btn-ghost" onclick="closeDetail()">닫기</button>
-        <a class="btn-ghost" id="detailExpand" href="#" target="_blank">대화면으로 보기(새창) ↗</a>
-        <a class="btn-primary" id="detailLink" href="https://mail.worksmobile.com/" target="_blank" rel="noopener">네이버웍스에서 열기 ↗</a>
+        <a class="btn-primary" id="detailExpand" href="#" target="_blank">대화면으로 보기(새창) ↗</a>
       </div>
     </div>
   </div>
@@ -270,7 +269,6 @@
     if (iframe) {
       iframe.srcdoc = '<div style="padding:20px; font-family:sans-serif; color:#666;">본문을 불러오는 중입니다... ⏳</div>';
     }
-    document.getElementById('detailLink').href = m.link || 'https://mail.worksmobile.com/';
     document.getElementById('detailExpand').href = 'mail_viewer.html?mailId=' + encodeURIComponent(m.mailId || '') + '&subject=' + encodeURIComponent(m.subject || '');
     document.getElementById('detailModal').classList.add('show');
 
