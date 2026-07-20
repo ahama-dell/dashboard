@@ -547,16 +547,14 @@
       </div>
 
       <div id="contentGrid">
-        <!-- 콘텐츠 블록 1 -->
-        <div class="card placeholder-card block-panel" id="block1" data-block="block1" style="min-height:230px;">
-          <div class="card-head panel-header" data-panel="block1">
-            <h2 class="block-title">콘텐츠 영역 1</h2>
-            <button class="head-link admin-only" onclick="openContentEdit('block1')">✏️ 편집</button>
+        <!-- 콘텐츠 블록 1 (공지사항) -->
+        <div class="card block-panel" id="block1" data-block="block1" style="display:flex; flex-direction:column; overflow:hidden;">
+          <div class="card-head panel-header" data-panel="block1" style="flex-shrink:0;">
+            <h2 class="block-title">📢 공지사항</h2>
+            <a class="head-link" href="https://board.worksmobile.com/" target="_blank" rel="noopener">게시판 ↗</a>
           </div>
-          <div class="block-body ph-body">
-            <span class="ph-ico">📋</span>
-            <span>추가 콘텐츠가 이곳에 배치됩니다</span>
-          </div>
+          <iframe src="dashboard/works_board.html" title="공지사항" loading="lazy"
+                  style="flex:1; min-height:0; width:100%; border:none; margin-top:8px;"></iframe>
           <div class="rs-handle se admin-only" data-panel="block1" data-dir="se"></div>
         </div>
 
@@ -573,16 +571,14 @@
           <div class="rs-handle se admin-only" data-panel="block2" data-dir="se"></div>
         </div>
 
-        <!-- 콘텐츠 블록: 현황 요약 -->
-        <div class="card placeholder-card block-panel" id="summary" data-block="summary">
-          <div class="card-head panel-header" data-panel="summary">
-            <h2 class="block-title">현황 요약</h2>
-            <button class="head-link admin-only" onclick="openContentEdit('summary')">✏️ 편집</button>
+        <!-- 시스템 알림 & 메시지 (구 summary) -->
+        <div class="card block-panel" id="summary" data-block="summary" style="display:flex; flex-direction:column; overflow:hidden;">
+          <div class="card-head panel-header" data-panel="summary" style="flex-shrink:0;">
+            <h2 class="block-title">💬 시스템 알림 & 메시지</h2>
+            <a class="head-link" href="https://talk.worksmobile.com/" target="_blank" rel="noopener">메신저 ↗</a>
           </div>
-          <div class="block-body ph-body">
-            <span class="ph-ico">📊</span>
-            <span>요약 통계가 이곳에 배치됩니다</span>
-          </div>
+          <iframe src="dashboard/works_talk.html" title="시스템 알림 & 메시지" loading="lazy"
+                  style="flex:1; min-height:0; width:100%; border:none; margin-top:8px;"></iframe>
           <div class="rs-handle se admin-only" data-panel="summary" data-dir="se"></div>
         </div>
 
@@ -618,16 +614,6 @@
           <div class="rs-handle se admin-only" data-panel="mailPanel" data-dir="se"></div>
         </div>
 
-        <!-- 시스템 알림 & 메신저 패널 (별도 모듈 works_talk.html 임베드) -->
-        <div class="card block-panel" id="snsPanel" data-block="snsPanel" style="display:flex; flex-direction:column; overflow:hidden;">
-          <div class="card-head panel-header" data-panel="snsPanel" style="flex-shrink:0;">
-            <h2 class="block-title">💬 시스템 알림 & 메신저</h2>
-            <a class="head-link" href="https://talk.worksmobile.com/" target="_blank" rel="noopener">메신저 ↗</a>
-          </div>
-          <iframe src="dashboard/works_talk.html" title="시스템 알림 목록" loading="lazy"
-                  style="flex:1; min-height:0; width:100%; border:none; margin-top:8px;"></iframe>
-          <div class="rs-handle se admin-only" data-panel="snsPanel" data-dir="se"></div>
-        </div>
       </div>
 
       <footer>

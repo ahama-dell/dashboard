@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>네이버웍스 공지사항</title>
+<style>
+  :root {
+    --teal: #17777d;
+    --teal-deep: #0e5a60;
+    --teal-soft: #e0f0ef;
+    --text-pri: #12343a;
+    --text-sec: #5f8286;
+    --text-dim: #9db9bb;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+    background: transparent; color: var(--text-pri); font-size: 14px; overflow: hidden;
+  }
+  #wrap { height: 100%; display: flex; flex-direction: column; padding: 4px 2px; }
+  
+  #listScroll { flex: 1; min-height: 0; overflow-y: auto; }
+  #listScroll::-webkit-scrollbar { width: 6px; }
+  #listScroll::-webkit-scrollbar-thumb { background: rgba(23,119,125,0.2); border-radius: 3px; }
+
+  .works-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .works-list li {
+    padding: 10px 12px; background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(23, 119, 125, 0.08); border-radius: 10px;
+    font-size: 0.78rem; cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .works-list li:hover { background: var(--teal-soft); transform: translateY(-1px); }
+  
+  .list-placeholder {
+    text-align: center; color: var(--text-dim);
+    border: 1px dashed rgba(0, 0, 0, 0.06) !important; background: transparent !important;
+    padding: 26px !important; cursor: default !important;
+  }
+  .list-placeholder:hover { transform: none !important; }
+
+  .board-title { font-weight: 700; color: var(--text-pri); word-break: break-all; }
+  .board-meta { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-dim); }
+  .board-author { color: var(--text-sec); }
+
+  /* 설정 유도 화면 */
+  .works-unconfigured {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; height: 100%; color: var(--text-sec); padding: 20px;
+  }
+  .unconfigured-icon { font-size: 2rem; margin-bottom: 8px; opacity: 0.8; }
+  .unconfigured-title { font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; color: var(--teal-deep); }
+  .unconfigured-desc { font-size: 0.75rem; line-height: 1.5; margin-bottom: 12px; word-break: keep-all; }
+  .unconfigured-link {
+    display: inline-block; padding: 6px 14px; background: var(--teal); color: #fff;
+    text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 0.75rem; cursor: pointer; border: none;
+  }
+  
+  /* 하단 유틸 바 */
+  #utilBar { flex-shrink: 0; display: none; justify-content: flex-end; padding: 6px 2px 2px; }
+  #utilBar button {
+    font-size: 0.65rem; font-weight: 700; color: #ef4444; font-family: inherit;
+    background: none; border: none; cursor: pointer; padding: 3px 6px;
+  }
+  #utilBar button:hover { text-decoration: underline; }
+
+  /* 토스트 메시지 */
+  #toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: rgba(18, 52, 58, 0.85); color: #fff; padding: 8px 16px; border-radius: 20px;
+    font-size: 0.75rem; pointer-events: none; opacity: 0; transition: opacity 0.3s, transform 0.3s;
+    white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="listScroll">
+      <ul class="works-list" id="boardList">
+        <li class="list-placeholder">로딩 중...</li>
+      </ul>
+    </div>
+    <div id="utilBar">
+      <button onclick="doLogout()" title="네이버웍스 연동 로그아웃">🚪 연동 해제</button>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+  const API = 'naver_works_api.php';
+  const TOKEN_KEY = 'naver_works_access_token';
+  const REFRESH_KEY = 'naver_works_refresh_token';
+  const EXPIRES_KEY = 'naver_works_token_expires';
+
+  let notices = [];
+
+  function esc(s) { return String(s || '').replace(/[&<>'"]/g, t => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[t] || t)); }
+
+  let toastTimer;
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+  }
+
+  function clearTokens() {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_KEY);
+    localStorage.removeItem(EXPIRES_KEY);
+  }
+
+  async function fetchData() {
+    try {
+      const cfgRes = await fetch(API + '?action=config', { cache: 'no-cache' });
+      if (!cfgRes.ok) throw new Error('Config load failed');
+      const config = await cfgRes.json();
+
+      const accessToken = await checkAndRefreshToken();
+      if (!accessToken) { showLoginForm(config.client_id, config.isMockMode); return; }
+
+      const res = await fetch(API + '?action=getBoardNotices', {
+        cache: 'no-cache',
+        headers: { 'Authorization': 'Bearer ' + accessToken }
+      });
+      if (!res.ok) throw new Error('API request failed');
+      const data = await res.json();
+
+      if (!data.success) {
+        if (data.message && data.message.includes('인증 토큰')) {
+            clearTokens();
+            showLoginForm(config.client_id, config.isMockMode);
+        } else {
+            document.getElementById('listScroll').innerHTML = `<div class="list-placeholder">${esc(data.message)}</div>`;
+        }
+        return;
+      }
+
+      document.getElementById('utilBar').style.display = 'flex';
+      renderBoards(data.notices || []);
+    } catch (err) {
+      showUnconfigured();
+    }
+  }
+
+  function showUnconfigured() {
+    document.getElementById('utilBar').style.display = 'none';
+    document.getElementById('listScroll').innerHTML = `
+      <div class="works-unconfigured">
+        <div class="unconfigured-icon">📢</div>
+        <div class="unconfigured-title">게시판 연동 대기 중</div>
+        <div class="unconfigured-desc">사내 공지사항과 연동하려면 설정이 필요합니다.</div>
+      </div>`;
+  }
+
+  function showLoginForm(clientId, isMockMode) {
+    document.getElementById('utilBar').style.display = 'none';
+    const guideText = isMockMode
+      ? '데모 모드입니다. 로그인 클릭 시 즉시 테스트 로그인이 완료됩니다.'
+      : '로그인 시 사내 공지사항을 확인할 수 있습니다.';
+    document.getElementById('listScroll').innerHTML = `
+      <div class="works-unconfigured">
+        <div class="unconfigured-icon">🔒</div>
+        <div class="unconfigured-title">공지사항 로그인 필요</div>
+        <div class="unconfigured-desc">${esc(guideText)}</div>
+        <button class="unconfigured-link" onclick="doLogin('${esc(clientId)}', ${isMockMode ? 'true' : 'false'})">🔑 네이버웍스 로그인</button>
+      </div>`;
+  }
+
+  function renderBoards(dataList) {
+    document.getElementById('listScroll').innerHTML = '<ul class="works-list" id="boardList"></ul>';
+    const listEl = document.getElementById('boardList');
+    if (dataList.length > 0) {
+      notices = dataList;
+      listEl.innerHTML = dataList.map((m, idx) => `
+        <li onclick="openBoardLink(${idx})">
+          <div class="board-title">${esc(m.title)}</div>
+          <div class="board-meta">
+            <span class="board-author">${esc(m.author)}</span>
+            <span class="board-date">${esc(m.createdTime)}</span>
+          </div>
+        </li>`).join('');
+    } else {
+      listEl.innerHTML = '<li class="list-placeholder">새로운 공지사항이 없습니다.</li>';
+    }
+  }
+
+  function openBoardLink(idx) {
+    const m = notices[idx];
+    if (m && m.link) {
+      window.open(m.link, '_blank');
+    }
+  }
+
+  // 로그인 팝업
+  function doLogin(clientId, isMockMode) {
+    if (isMockMode) {
+      const now = Date.now();
+      localStorage.setItem(TOKEN_KEY, 'mock_access_token_' + now);
+      localStorage.setItem(REFRESH_KEY, 'mock_refresh_token_' + now);
+      localStorage.setItem(EXPIRES_KEY, String(now + 86400 * 1000));
+      showToast('✓ 테스트 로그인이 완료되었습니다.');
+      fetchData();
+      return;
+    }
+    const redirectUri = window.location.origin + window.location.pathname.replace('works_board.html', 'works_mail.html'); 
+    // works_mail.html 을 콜백 모듈로 사용
+    const loginUrl = 'https://auth.worksmobile.com/oauth2/v2.0/authorize'
+      + '?client_id=' + encodeURIComponent(clientId)
+      + '&redirect_uri=' + encodeURIComponent(redirectUri)
+      + '&scope=' + encodeURIComponent('mail.read board.read')
+      + '&response_type=code&state=works_board_module';
+
+    const popup = window.open(loginUrl, 'worksLogin', 'width=480,height=640,menubar=no,toolbar=no');
+    if (!popup) {
+      try { window.top.location.href = loginUrl; }
+      catch (e) { window.location.href = loginUrl; }
+    }
+  }
+
+  function doLogout() {
+    clearTokens();
+    showToast('로그아웃 되었습니다.');
+    setTimeout(fetchData, 500);
+  }
+
+  async function checkAndRefreshToken() {
+    const accessToken = localStorage.getItem(TOKEN_KEY);
+    const refreshToken = localStorage.getItem(REFRESH_KEY);
+    const expiresStr = localStorage.getItem(EXPIRES_KEY);
+    if (!accessToken) return null;
+    
+    if (expiresStr) {
+      const expiresAt = parseInt(expiresStr, 10);
+      if (Date.now() > expiresAt - 300000) {
+        if (!refreshToken || refreshToken.startsWith('mock_')) return accessToken;
+        try {
+          const res = await fetch(API + '?action=refresh&refresh_token=' + encodeURIComponent(refreshToken));
+          const data = await res.json();
+          if (data.success && data.access_token) {
+            localStorage.setItem(TOKEN_KEY, data.access_token);
+            if (data.refresh_token) localStorage.setItem(REFRESH_KEY, data.refresh_token);
+            if (data.expires_in) localStorage.setItem(EXPIRES_KEY, String(Date.now() + (data.expires_in * 1000)));
+            return data.access_token;
+          }
+        } catch (e) { console.error('토큰 갱신 실패:', e); }
+      }
+    }
+    return accessToken;
+  }
+
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'worksLoginSuccess') {
+      showToast('로그인 연동이 성공했습니다.');
+      fetchData();
+    }
+  });
+
+  window.addEventListener('storage', function(e) {
+      if (e.key === TOKEN_KEY) fetchData();
+  });
+
+  document.addEventListener("DOMContentLoaded", fetchData);
+
+</script>
+</body>
+</html>

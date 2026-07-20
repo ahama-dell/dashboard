@@ -528,6 +528,98 @@ if ($action === 'getMailBody') {
     exit;
 }
 
+// 4. 공지사항(게시판) 조회
+if ($action === 'getBoardNotices') {
+    if ($isMockMode) {
+        echo json_encode([
+            "success" => true,
+            "isMockMode" => true,
+            "notices" => [
+                [
+                    "postId" => "101",
+                    "title" => "[공지] 하계 휴가 일정 및 공장 가동 중지 안내",
+                    "author" => "인사총무팀",
+                    "createdTime" => "10:00",
+                    "link" => "https://board.worksmobile.com/"
+                ],
+                [
+                    "postId" => "102",
+                    "title" => "양평동 현장 안전수칙 준수 철저 (필독)",
+                    "author" => "안전관리본부",
+                    "createdTime" => "어제",
+                    "link" => "https://board.worksmobile.com/"
+                ],
+                [
+                    "postId" => "103",
+                    "title" => "신규 입사자 시스템 권한 신청 안내",
+                    "author" => "IT지원팀",
+                    "createdTime" => "07.10",
+                    "link" => "https://board.worksmobile.com/"
+                ]
+            ]
+        ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        exit;
+    }
+
+    $accessToken = '';
+    $authHeader = '';
+    if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
+    } elseif (function_exists('apache_request_headers')) {
+        $requestHeaders = apache_request_headers();
+        if (isset($requestHeaders['Authorization'])) {
+            $authHeader = $requestHeaders['Authorization'];
+        }
+    }
+    if (!empty($authHeader) && preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+        $accessToken = $matches[1];
+    } elseif (isset($_GET['access_token'])) {
+        $accessToken = $_GET['access_token'];
+    }
+    if (empty($accessToken)) {
+        echo json_encode(["success" => false, "message" => "인증 토큰(access_token)이 없습니다."]);
+        exit;
+    }
+
+    // 1. 게시판 목록 조회
+    $apiBase = 'https://www.worksapis.com/v1.0/boards';
+    list($codeBoards, $boardsData) = worksApiGet($apiBase, $accessToken);
+    if ($codeBoards !== 200 || !isset($boardsData['boards']) || count($boardsData['boards']) === 0) {
+        echo json_encode(["success" => false, "message" => "게시판 목록 조회 실패 (HTTP {$codeBoards})"]);
+        exit;
+    }
+
+    // 2. '공지사항' 찾기 (없으면 첫 번째 게시판)
+    $targetBoardId = $boardsData['boards'][0]['boardId'];
+    foreach ($boardsData['boards'] as $b) {
+        if (strpos($b['title'], '공지') !== false) {
+            $targetBoardId = $b['boardId'];
+            break;
+        }
+    }
+
+    // 3. 해당 게시판의 게시글 목록 조회
+    list($codePosts, $postsData) = worksApiGet("{$apiBase}/{$targetBoardId}/posts", $accessToken);
+    if ($codePosts !== 200 || !isset($postsData['posts'])) {
+        echo json_encode(["success" => false, "message" => "게시글 조회 실패 (HTTP {$codePosts})"]);
+        exit;
+    }
+
+    $notices = [];
+    foreach ($postsData['posts'] as $p) {
+        $notices[] = [
+            "postId" => $p['postId'],
+            "title" => isset($p['title']) ? $p['title'] : '(제목 없음)',
+            "author" => isset($p['writer']['name']) ? $p['writer']['name'] : '알 수 없음',
+            "createdTime" => isset($p['createdTime']) ? formatWorksMailTime($p['createdTime']) : '',
+            "link" => "https://board.worksmobile.com/article/{$targetBoardId}/{$p['postId']}"
+        ];
+    }
+
+    echo json_encode(["success" => true, "isMockMode" => false, "notices" => $notices]);
+    exit;
+}
+
 // 2. 메시지 봇을 통한 메시지 전송
 function sendNaverWorksBotMessage($botId, $channelId, $message) {
     $accessToken = getNaverWorksAccessToken();
