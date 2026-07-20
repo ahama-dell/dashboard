@@ -465,8 +465,8 @@ function getNaverWorksSummary($accessToken) {
                 "receivedTime" => isset($m['receivedTime']) ? formatWorksMailTime($m['receivedTime']) : '',
                 "isUnread" => $isUnread,
                 "body" => $bodyContent,
-                "link" => (isset($m['folderId']) && isset($m['mailId'])) 
-                            ? "https://mail.worksmobile.com/#/read/{$m['folderId']}/{$m['mailId']}" 
+                "link" => isset($m['mailId']) 
+                            ? "https://mail.worksmobile.com/#/read/{$inboxFolderId}/{$m['mailId']}" 
                             : "https://mail.worksmobile.com/"
             ];
         }
