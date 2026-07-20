@@ -2,6 +2,20 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<script>
+  // 화면 깜박임(잔상) 방지: 렌더링 전 즉시 세션 확인 후 포털로 이동
+  (function() {
+    const raw = localStorage.getItem('lw_session');
+    if (raw) {
+      try {
+        const session = JSON.parse(raw);
+        if (Date.now() <= session.expiresAt) {
+          window.location.replace('portal.html');
+        }
+      } catch (e) {}
+    }
+  })();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>중앙알텍 사내 포털</title>
 <style>
